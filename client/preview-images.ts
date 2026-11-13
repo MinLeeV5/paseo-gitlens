@@ -1,3 +1,4 @@
+import { type Translate, tZh } from "../shared/i18n";
 import { type PreviewImages, previewImageSource } from "../shared/preview-images";
 
 export function escapeAttribute(value: string) {
@@ -46,10 +47,12 @@ export function imageHtml(
   alt: string,
   images: PreviewImages = {},
   attributes: Record<string, string> = {},
+  t: Translate = tZh,
 ) {
   const source = previewImageSource(href);
-  const label = escapeAttribute(alt || "图片");
-  if (!source) return `<span class="asset">${label}（不支持的图片地址）</span>`;
+  const label = escapeAttribute(alt || t("图片"));
+  if (!source)
+    return `<span class="asset">${label}${escapeAttribute(t("（不支持的图片地址）"))}</span>`;
   const local = source.kind === "file";
   const image = local && Object.hasOwn(images, source.href) ? images[source.href] : undefined;
   if (local && image?.message)
@@ -63,9 +66,9 @@ export function imageHtml(
   return `<img alt="${label}"${uri ? ` src="${escapeAttribute(uri)}"` : ""}${local ? ` data-preview-src="${escapeAttribute(source.href)}"` : ""}${dimensions} loading="lazy" decoding="async" referrerpolicy="no-referrer">`;
 }
 
-export function htmlImages(source: string, images: PreviewImages = {}) {
+export function htmlImages(source: string, images: PreviewImages = {}, t: Translate = tZh) {
   return replaceImageTags(source, (attributes) =>
-    imageHtml(attributes.src ?? "", attributes.alt ?? "", images, attributes),
+    imageHtml(attributes.src ?? "", attributes.alt ?? "", images, attributes, t),
   );
 }
 

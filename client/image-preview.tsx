@@ -2,6 +2,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Image, ScrollView, Text, View } from "react-native";
 import { ToolButton } from "./controls";
+import { useT } from "./i18n";
 import { panelTokens } from "./theme";
 
 function useImageSize(uri: string, attempt = 0) {
@@ -45,10 +46,23 @@ export function MarkdownImage({
   requestedHeight?: number;
   color: string;
 }) {
+  const t = useT();
   const size = useImageSize(uri);
   const [failed, setFailed] = useState(false);
-  if (failed || size?.error) return <Text style={{ color }}>{label}（图片加载失败）</Text>;
-  if (!size) return <Text style={{ color }}>{label}（正在加载图片…）</Text>;
+  if (failed || size?.error)
+    return (
+      <Text style={{ color }}>
+        {label}
+        {t("（图片加载失败）")}
+      </Text>
+    );
+  if (!size)
+    return (
+      <Text style={{ color }}>
+        {label}
+        {t("（正在加载图片…）")}
+      </Text>
+    );
   const displayWidth = Math.min(
     width,
     requestedWidth || (requestedHeight ? (size.width * requestedHeight) / size.height : size.width),
@@ -77,6 +91,7 @@ export function ImagePreview({
   onCost?(bytes: number): void;
   onReload?(): void;
 }) {
+  const t = useT();
   const c = panelTokens(theme);
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -102,12 +117,12 @@ export function ImagePreview({
         style={{ flex: 1, gap: 12, padding: 24, alignItems: "center", justifyContent: "center" }}
       >
         <Text style={{ color: c.foregroundMuted, fontSize: 12 }}>
-          图片加载失败，文件可能已损坏或当前客户端不支持此格式。
+          {t("图片加载失败，文件可能已损坏或当前客户端不支持此格式。")}
         </Text>
         <ToolButton
           theme={theme}
-          label="重试加载图片"
-          text="重试"
+          label={t("重试加载图片")}
+          text={t("重试")}
           icon="refresh"
           size={44}
           onPress={() => {
@@ -133,15 +148,15 @@ export function ImagePreview({
       >
         <ToolButton
           theme={theme}
-          label="适应窗口"
-          text="适应"
+          label={t("适应窗口")}
+          text={t("适应")}
           size={44}
           active={zoom === null}
           onPress={() => setZoom(null)}
         />
         <ToolButton
           theme={theme}
-          label="原始尺寸（100%）"
+          label={t("原始尺寸（100%）")}
           text="100%"
           size={44}
           active={zoom === 1}
@@ -150,7 +165,7 @@ export function ImagePreview({
         />
         <ToolButton
           theme={theme}
-          label="缩小图片"
+          label={t("缩小图片")}
           text="−"
           size={44}
           disabled={!size || scale <= 0.05}
@@ -158,14 +173,16 @@ export function ImagePreview({
         />
         <ToolButton
           theme={theme}
-          label="放大图片"
+          label={t("放大图片")}
           text="+"
           size={44}
           disabled={!size || scale >= 8}
           onPress={() => setZoom(Math.min(8, scale * 1.25))}
         />
         <Text accessibilityLiveRegion="polite" style={{ color: c.foregroundMuted, fontSize: 11 }}>
-          {size ? `${Math.round(scale * 100)}% · ${size.width} × ${size.height}` : "正在加载图片…"}
+          {size
+            ? `${Math.round(scale * 100)}% · ${size.width} × ${size.height}`
+            : t("正在加载图片…")}
         </Text>
       </View>
       <View

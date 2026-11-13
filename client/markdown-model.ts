@@ -1,3 +1,4 @@
+import { type Translate, tZh } from "../shared/i18n";
 import type { PreviewImages } from "../shared/preview-images";
 import { markdownHtml } from "./preview-model";
 
@@ -25,10 +26,11 @@ export function markdownNodes(
   source: string,
   background: string,
   images?: PreviewImages,
+  t: Translate = tZh,
 ): MarkdownNode[] {
   const root: MarkdownNode = { key: -1, tag: "root", attributes: {}, children: [] };
   const stack = [root];
-  for (const match of markdownHtml(source, background, images).matchAll(/<([^>]+)>|([^<]+)/g)) {
+  for (const match of markdownHtml(source, background, images, t).matchAll(/<([^>]+)>|([^<]+)/g)) {
     const parent = stack[stack.length - 1];
     if (match[2] !== undefined) {
       parent.children.push(decode(match[2]));

@@ -2,6 +2,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Text, type TextStyle, View } from "react-native";
 import type { PreviewImages } from "../shared/preview-images";
+import { useT } from "./i18n";
 import { MarkdownImage } from "./image-preview";
 import { type MarkdownNode, markdownNodes } from "./markdown-model";
 import { panelTokens } from "./theme";
@@ -26,9 +27,10 @@ export function NativeMarkdown({
   images?: PreviewImages;
 }) {
   const c = panelTokens(theme);
+  const t = useT();
   const nodes = useMemo(
-    () => markdownNodes(content, c.surface0, images),
-    [content, c.surface0, images],
+    () => markdownNodes(content, c.surface0, images, t),
+    [content, c.surface0, images, t],
   );
   const [contentWidth, setContentWidth] = useState(280);
   const scroll = useRef<ScrollView>(null);
@@ -60,7 +62,7 @@ export function NativeMarkdown({
           <MarkdownImage
             key={`${node.key}:${node.attributes.src}`}
             uri={node.attributes.src}
-            label={node.attributes.alt || "图片"}
+            label={node.attributes.alt || t("图片")}
             width={imageWidth}
             requestedWidth={Number(node.attributes.width) || undefined}
             requestedHeight={Number(node.attributes.height) || undefined}
@@ -68,7 +70,7 @@ export function NativeMarkdown({
           />
         ) : (
           <Text key={node.key} style={{ color: c.foregroundMuted }}>
-            {node.attributes.alt || "图片"}（图片未加载）
+            {node.attributes.alt || t("图片")}
           </Text>
         );
       const style: TextStyle =
@@ -198,7 +200,7 @@ export function NativeMarkdown({
       return (
         <View key={node.key} style={{ marginVertical: 8 }}>
           <Text style={[textStyle, { color: c.foregroundMuted }]}>
-            Mermaid 图表源码（图形预览可在桌面或 Web 打开）
+            {t("Mermaid 图表源码（图形预览可在桌面或 Web 打开）")}
           </Text>
           {children
             .filter((child) => child.tag === "details")

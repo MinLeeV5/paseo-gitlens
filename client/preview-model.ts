@@ -1,3 +1,4 @@
+import { type Translate, tZh } from "../shared/i18n";
 import { imageMimeType, type PreviewImages } from "../shared/preview-images";
 import { parsePreviewLink } from "../shared/preview-links";
 import { mermaidScript } from "./mermaid-preview";
@@ -25,7 +26,7 @@ function safeUrl(url: string) {
   const trimmed = url.trim();
   return parsePreviewLink(trimmed) ? trimmed : null;
 }
-function formatInline(text: string, images: PreviewImages): string {
+function formatInline(text: string, images: PreviewImages, t: Translate = tZh): string {
   // Very long lines and unmatched bracket runs stay plain instead of causing
   // repeated backtracking in link/emphasis recognition.
   if (text.length > 4096) {
@@ -34,10 +35,10 @@ function formatInline(text: string, images: PreviewImages): string {
     const embedded = /^!\[([^\]\n]{0,512})\]\((data:image\/[a-z+-]+;base64,[a-z\d+/=]+)\)$/i.exec(
       text.trim(),
     );
-    if (embedded) return imageHtml(embedded[2], embedded[1], images);
+    if (embedded) return imageHtml(embedded[2], embedded[1], images, {}, t);
     const rawImages: string[] = [];
     const remainder = replaceImageTags(text.trim(), (attributes) => {
-      rawImages.push(imageHtml(attributes.src ?? "", attributes.alt ?? "", images, attributes));
+      rawImages.push(imageHtml(attributes.src ?? "", attributes.alt ?? "", images, attributes, t));
       return "";
     });
     return rawImages.length === 1 && !remainder ? rawImages[0] : escapeHtml(text);
@@ -63,9 +64,10 @@ function formatInline(text: string, images: PreviewImages): string {
     return `\uE000${index}\uE001`;
   });
   source = replaceImageTags(source, (attributes) => {
-    const alt = attributes.alt ?? "图片";
+    const alt = attributes.alt ?? t("图片");
     const index =
-      slots.push({ html: imageHtml(attributes.src ?? "", alt, images, attributes), text: alt }) - 1;
+      slots.push({ html: imageHtml(attributes.src ?? "", alt, images, attributes, t), text: alt }) -
+      1;
     return `\uE000${index}\uE001`;
   });
   // Protect images before links so linked badges ([![alt](image)](link)) work too.
@@ -74,7 +76,8 @@ function formatInline(text: string, images: PreviewImages): string {
     (_, label: string, url: string) => {
       const target = url.startsWith("<") ? url.slice(1, -1) : url;
       const labelText = plain(label);
-      const index = slots.push({ html: imageHtml(target, labelText, images), text: labelText }) - 1;
+      const index =
+        slots.push({ html: imageHtml(target, labelText, images, {}, t), text: labelText }) - 1;
       return `\uE000${index}\uE001`;
     },
   );
@@ -115,8 +118,9 @@ export function markdownHtml(
   source: string,
   background = "#1f1f1f",
   images: PreviewImages = {},
+  t: Translate = tZh,
 ): string {
-  const inline = (text: string) => formatInline(text, images);
+  const inline = (text: string) => formatInline(text, images, t);
   const lines = source
     .replace(/\r\n?/g, "\n")
     .replaceAll("\uE000", "")
@@ -153,7 +157,7 @@ export function markdownHtml(
       if (index < lines.length) index++;
       if (fence[2].toLowerCase() === "mermaid") {
         blocks.push(
-          `<figure class="mermaid-diagram" data-state="pending"><div class="mermaid-display" aria-busy="true">正在加载 Mermaid 图表…</div><details><summary>Mermaid 源码</summary><pre class="mermaid-source">${escapeHtml(code.join("\n"))}</pre></details></figure>`,
+          `<figure class="mermaid-diagram" data-state="pending"><div class="mermaid-display" aria-busy="true">${escapeHtml(t("正在加载 Mermaid 图表…"))}</div><details><summary>${escapeHtml(t("Mermaid 源码"))}</summary><pre class="mermaid-source">${escapeHtml(code.join("\n"))}</pre></details></figure>`,
         );
         continue;
       }
@@ -257,7 +261,7 @@ export function markdownHtml(
       if (lines[index + 1]?.includes("---") && lines[index].includes("|")) break;
       paragraph.push(lines[index++]);
     }
-    blocks.push(`<p>${paragraph.map(inline).join("<br>")}</p>`);
+    blocks.push(`<p>${paragraph.map((part) => inline(part)).join("<br>")}</p>`);
   }
   return blocks.join("\n");
 }
@@ -274,8 +278,10 @@ export function previewDocument(
     navigation?: { token: string; nonce: string };
     filePath?: string;
     images?: PreviewImages;
+    t?: Translate;
   } = {},
 ): string {
+  const t = options.t ?? tZh;
   const css = `:root{color-scheme:${syntaxPalette(colors.background).keyword === "#af00db" ? "light" : "dark"}}*{box-sizing:border-box}html{min-height:100%;background:${colors.background};color:${colors.foreground}}body{margin:0;padding:24px clamp(16px,4vw,48px);font: ${fontSize + 2}px/1.7 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow-wrap:anywhere}body.markdown{max-width:960px;margin:auto}h1,h2,h3,h4{line-height:1.3;margin:1.1em 0 .5em}h1,h2{border-bottom:1px solid ${colors.border};padding-bottom:.3em}h1{font-size:1.8em}h2{font-size:1.45em}p,ul,ol,pre,table,blockquote{margin:.8em 0}pre{padding:14px;overflow:auto;border:1px solid ${colors.border};border-radius:4px;background:${colors.background}}code{font: .88em/1.65 Menlo,Consolas,monospace;white-space:pre-wrap}pre code{white-space:pre}p code,li code{padding:2px 4px;background:${colors.border};border-radius:3px}blockquote{border-left:3px solid ${colors.border};color:${colors.muted};padding:0 14px}a{color:${colors.accent}}img{max-width:100%;height:auto}hr{border:0;border-top:1px solid ${colors.border}}.table{overflow:auto}table{border-collapse:collapse}th,td{border:1px solid ${colors.border};padding:6px 12px}th{text-align:left}.asset{color:${colors.muted};font-size:.9em}li input{vertical-align:middle}::-webkit-scrollbar{width:7px;height:7px}::-webkit-scrollbar-thumb{background:${colors.border};border-radius:6px}html{scrollbar-width:thin;scrollbar-color:${colors.border} transparent}`;
   const typographyCss = `code,pre{font-family:${options.fontFamily ?? "SFMono-Regular,Menlo,Monaco,Consolas,monospace"};font-weight:${options.fontWeight ?? "500"}}.mermaid-diagram{margin:1.2em 0;padding:14px;border:1px solid ${colors.border};border-radius:4px}.mermaid-display{overflow:auto;min-height:48px;font-size:12px;color:${colors.muted}}.mermaid-display svg{display:block;max-width:100%;height:auto;margin:auto}.mermaid-display svg *{filter:none!important}.mermaid-diagram details{font-size:12px;color:${colors.muted};margin-top:10px}.mermaid-diagram summary{cursor:pointer}.mermaid-source{font-size:12px}body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}`;
   let sourceCode = "";
@@ -300,19 +306,19 @@ export function previewDocument(
   }
   const body =
     kind === "markdown"
-      ? markdownHtml(content, colors.background, options.images)
+      ? markdownHtml(content, colors.background, options.images, t)
       : kind === "image"
-        ? `<img alt="文件预览" src="${escapeHtml(content)}">`
+        ? `<img alt="${escapeHtml(t("文件预览"))}" src="${escapeHtml(content)}">`
         : kind === "code"
           ? `<pre><code>${sourceCode}</code></pre>`
-          : htmlImages(content, options.images)
+          : htmlImages(content, options.images, t)
               .replace(/<meta\b[^>]*>/gi, "")
               .replace(/<base\b[^>]*>/gi, "");
   const mermaid = kind === "markdown" ? options.mermaid : undefined;
   const navigation = kind === "markdown" ? options.navigation : undefined;
   const nonces = [mermaid?.nonce, navigation?.nonce].filter(Boolean);
   const script = mermaid
-    ? `<script nonce="${mermaid.nonce}">${mermaidScript(mermaid.gzip, mermaid.nonce, syntaxPalette(colors.background).keyword === "#af00db")}</script>`
+    ? `<script nonce="${mermaid.nonce}">${mermaidScript(mermaid.gzip, mermaid.nonce, syntaxPalette(colors.background).keyword === "#af00db", t)}</script>`
     : "";
   const bridge = navigation
     ? `<script nonce="${navigation.nonce}">${previewBridge(navigation.token)}</script>`
