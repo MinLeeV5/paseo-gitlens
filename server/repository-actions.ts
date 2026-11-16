@@ -1,9 +1,9 @@
-import { lstat } from "node:fs/promises";
-import { join, relative, sep } from "node:path";
+import { lstat, unlink } from "node:fs/promises";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import type { RepositorySnapshot } from "../shared/contracts";
 import type { RepositoryAction } from "../shared/repository-contracts";
 import { DIFF_OPTIONS, git } from "./git";
-import { parseIndex, parseNameStatus } from "./parsers";
+import { parseIndex, parseNameStatus, parseTree } from "./parsers";
 import { resolveFile } from "./repositories";
 
 async function head(directory: string) {
@@ -96,6 +96,71 @@ async function syncTarget(repository: RepositorySnapshot) {
   return { remote, ref, tracking: Boolean(remoteConfig.trim() && mergeConfig.trim()) };
 }
 
+async function resetFile(
+  repository: RepositorySnapshot,
+  input: Extract<RepositoryAction, { action: "reset" }>,
+) {
+  checkedPaths(repository, [input.path]);
+  const file = repository.files.find((file) => file.path === input.path);
+  if (!file || file.version !== input.expectedVersion)
+    throw new Error("文件已变化，请刷新并重新确认 Reset。");
+  // Include an indexed rename even when the UI is showing only unstaged edits.
+  const staged = parseNameStatus(
+    await git(repository.directory, ["diff", ...DIFF_OPTIONS, "--cached", "--name-status", "-z"]),
+  ).find((change) => change.path === file.path && change.status === "renamed");
+  const oldPath = staged?.oldPath ?? (file.status === "renamed" ? file.oldPath : undefined);
+  const paths = checkedPaths(repository, oldPath ? [oldPath, file.path] : [file.path]);
+  for (const path of paths) {
+    const absolute = resolveFile(repository.directory, path);
+    const stat = await lstat(absolute).catch((error) => {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
+    });
+    if (stat?.isDirectory()) throw new Error("不能 Reset 目录，请刷新后检查文件状态。");
+    if (path === oldPath && stat)
+      throw new Error("重命名前的路径已存在文件，请先处理该文件再 Reset。");
+    // Never traverse a replaced parent symlink or touch a nested repository.
+    for (
+      let parent = dirname(absolute);
+      parent !== resolve(repository.directory);
+      parent = dirname(parent)
+    ) {
+      const parentStat = await lstat(parent).catch((error) => {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+        throw error;
+      });
+      if (parentStat?.isSymbolicLink() || (await lstat(join(parent, ".git")).catch(() => null)))
+        throw new Error("不能通过符号链接或其他仓库目录 Reset 文件。");
+    }
+  }
+  const [treeOutput, indexOutput] = await Promise.all([
+    repository.head
+      ? git(repository.directory, ["ls-tree", "-r", "-z", repository.head, "--", ...paths])
+      : Promise.resolve(""),
+    git(repository.directory, ["ls-files", "--stage", "-z", "--", ...paths]),
+  ]);
+  const tree = parseTree(treeOutput);
+  const index = parseIndex(indexOutput);
+  const restored = paths.filter((path) => tree.has(path));
+  const removed = paths.filter((path) => !tree.has(path));
+  const indexed = removed.filter((path) => index.has(path));
+  if (restored.length)
+    await git(repository.directory, [
+      "restore",
+      `--source=${repository.head}`,
+      "--staged",
+      "--worktree",
+      "--",
+      ...restored,
+    ]);
+  if (indexed.length)
+    await git(repository.directory, ["rm", "--cached", "--force", "--", ...indexed]);
+  for (const path of removed)
+    await unlink(resolveFile(repository.directory, path)).catch((error) => {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    });
+}
+
 export async function runRepositoryAction(repository: RepositorySnapshot, input: RepositoryAction) {
   const directory = repository.directory;
   let message: string;
@@ -115,6 +180,10 @@ export async function runRepositoryAction(repository: RepositorySnapshot, input:
       message = "已取消暂存，工作目录内容已保留。";
       break;
     }
+    case "reset":
+      await resetFile(repository, input);
+      message = "已丢弃所选文件的未提交更改。";
+      break;
     case "commit": {
       const messageText = input.message.trim();
       if (!messageText) throw new Error("请填写提交信息。");

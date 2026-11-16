@@ -7,7 +7,7 @@
 <p align="center"><strong>Review and commit across repositories, without leaving Paseo.</strong></p>
 
 <p align="center">
-  <a href="package.json"><img src="https://img.shields.io/badge/version-0.6.2-2DA44E" alt="Version 0.6.2" /></a>
+  <a href="package.json"><img src="https://img.shields.io/badge/version-0.7.0-2DA44E" alt="Version 0.7.0" /></a>
   <a href="paseo-plugin.json"><img src="https://img.shields.io/badge/Paseo-0.12.0%2B-0078D4" alt="Paseo 0.12.0 or later" /></a>
 </p>
 
@@ -59,6 +59,8 @@ _Screenshots use a local demo workspace._
 ## Commit and sync
 
 Stage or unstage individual files with `+` / `−`, or use a repository's controls for all its files. The commit button uses staged changes when present; **Stage and commit all** explicitly includes that repository's remaining changes.
+
+The **Reset** button beside `+` asks for confirmation before discarding a file's uncommitted changes, including staged changes. It restores tracked files to HEAD and deletes new files. This cannot be undone; if the file changes after the dialog opens, review it and confirm again.
 
 Generate an editable commit message with **Paseo AI** or **local file rules**. AI uses the selected repository and staged scope when available. Customize instructions in **Settings → Commit**, or leave them empty to use the repository's `paseo.json`:
 
@@ -117,7 +119,7 @@ The last **5 visited tabs** retain their contents and scroll positions by defaul
 - Supports linked worktrees, renames, deletions, conflicts, mode changes, and binary-file status. Uninitialized submodules are listed but not initialized automatically.
 - Files and previews are limited to **1 MiB**; patches to **2 MiB**. Larger entries keep their status and explain the limit.
 - Merge diffs use the first parent; root commits use the empty tree. Missing shallow-clone parents are reported explicitly.
-- Branch switching, discarding changes, and comparisons between arbitrary refs are not provided.
+- Branch switching and comparisons between arbitrary refs are not provided.
 
 ## Develop and verify
 

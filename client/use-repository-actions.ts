@@ -10,6 +10,7 @@ import { briefError, repositoryLabel, useMessage } from "./use-message";
 const actionLabels = {
   stage: "暂存",
   unstage: "取消暂存",
+  reset: "Reset",
   commit: "提交",
   pull: "拉取",
   push: "推送",

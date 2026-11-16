@@ -139,6 +139,7 @@ export function ToolButton({
   busy = false,
   text,
   size = 28,
+  iconSize = 16,
 }: {
   label: string;
   icon?: IconName;
@@ -149,6 +150,7 @@ export function ToolButton({
   busy?: boolean;
   text?: string;
   size?: number;
+  iconSize?: number;
 }) {
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -188,7 +190,7 @@ export function ToolButton({
       style={{
         minWidth: size,
         minHeight: size,
-        paddingHorizontal: text ? 7 : 5,
+        paddingHorizontal: text ? 7 : Math.max(0, Math.min(5, (size - iconSize - 2) / 2)),
         flexDirection: "row",
         gap: 5,
         alignItems: "center",
@@ -203,7 +205,7 @@ export function ToolButton({
       {busy ? (
         <ActivityIndicator size={14} color={color} />
       ) : icon ? (
-        <Icon name={icon} color={color} size={16} />
+        <Icon name={icon} color={color} size={iconSize} />
       ) : null}
       {text ? (
         <Text numberOfLines={1} style={{ color: active ? colors.foreground : color, fontSize: 11 }}>

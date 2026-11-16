@@ -197,6 +197,7 @@ export const RepositoryControls = memo(function RepositoryControls({
               commit: "正在提交…",
               stage: "正在暂存…",
               unstage: "正在取消暂存…",
+              reset: "正在 Reset 文件…",
               pull: "正在拉取…",
               push: "正在推送…",
               generate: "正在生成提交信息…",

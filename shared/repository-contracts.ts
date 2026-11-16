@@ -1,5 +1,6 @@
 import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
+import { comparisonSchema } from "./contracts";
 
 const repositoryInput = {
   directory: z.string().min(1),
@@ -17,6 +18,13 @@ export const repositoryActionRpc = defineRpc({
       ...repositoryInput,
       action: z.literal("unstage"),
       paths: z.array(z.string().min(1)).min(1).max(10000).optional(),
+    }),
+    z.object({
+      ...repositoryInput,
+      action: z.literal("reset"),
+      path: z.string().min(1),
+      comparison: comparisonSchema,
+      expectedVersion: z.string().min(1),
     }),
     z.object({
       ...repositoryInput,

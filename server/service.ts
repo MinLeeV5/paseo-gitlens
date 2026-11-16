@@ -64,7 +64,7 @@ export class GitChangesService {
   async repositoryAction(input: RepositoryAction) {
     const repository = await this.repository({
       directory: input.directory,
-      comparison: "head",
+      comparison: input.action === "reset" ? input.comparison : "head",
       force: true,
       repositoryId: input.repositoryId,
     });

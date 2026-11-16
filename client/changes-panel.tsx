@@ -35,6 +35,7 @@ import {
   revealFileRpc,
 } from "../shared/contracts";
 import { parsePreviewLink } from "../shared/preview-links";
+import type { RepositoryAction } from "../shared/repository-contracts";
 import type { TabStats } from "../shared/tab-cache";
 import {
   buildChangeRows,
@@ -54,6 +55,7 @@ import { HistoryPanel } from "./history-panel";
 import { fileAppearance, Icon } from "./icons";
 import { previewKind } from "./preview-model";
 import { RepositoryControls } from "./repository-controls";
+import { ResetFileDialog } from "./reset-file-dialog";
 import { SettingsPanel } from "./settings-panel";
 import { TabCache } from "./tab-cache";
 import { TabEditor } from "./tab-editor";
@@ -130,7 +132,7 @@ const ChangeItem = memo(function ChangeItem({
   busy: boolean;
   onToggle(key: string): void;
   onSelect(repositoryId: string, path: string): void;
-  onFileAction(repositoryId: string, path: string, action: "stage" | "unstage"): void;
+  onFileAction(repositoryId: string, path: string, action: "stage" | "unstage" | "reset"): void;
   onRegister(key: string, node: View | null): void;
   onFocusFile(key: string): void;
   onContextMenu(target: FileMenuTarget): void;
@@ -369,6 +371,15 @@ const ChangeItem = memo(function ChangeItem({
             onPress={() => onFileAction(repository.id, file.path, "stage")}
           />
         ) : null}
+        <ToolButton
+          label={`Reset · 丢弃更改 ${repository.id}/${displayPath(file.path)}`}
+          icon="reset"
+          size={24}
+          iconSize={14}
+          theme={theme}
+          disabled={busy}
+          onPress={() => onFileAction(repository.id, file.path, "reset")}
+        />
         {file.staged ? (
           <ToolButton
             label={`取消暂存 ${repository.id}/${displayPath(file.path)}`}
@@ -551,6 +562,10 @@ function WorkspaceEditor({
   const [showSettings, setShowSettings] = useState(false);
   const [previews, setPreviews] = useState<Record<string, boolean>>({});
   const [menu, setMenu] = useState<FileMenuTarget | null>(null);
+  const [resetFile, setResetFile] = useState<{
+    input: Extract<RepositoryAction, { action: "reset" }>;
+    hasHead: boolean;
+  } | null>(null);
   const [fileStatusError, setFileStatusError] = useState<string | null>(null);
   const message = useMessage();
   const getCapabilities = useRpc(fileCapabilitiesRpc);
@@ -844,7 +859,7 @@ function WorkspaceEditor({
     preventDefault(): void;
     stopPropagation(): void;
   }) {
-    if (event.target?.closest?.('[role="menu"]')) return;
+    if (event.target?.closest?.('[role="menu"], [role="alertdialog"]')) return;
     const editing = ["INPUT", "TEXTAREA"].includes(event.target?.tagName ?? "");
     if (event.target?.getAttribute?.("role") === "separator") return;
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
@@ -889,9 +904,23 @@ function WorkspaceEditor({
     }
   }
   const runFileAction = useCallback(
-    (repositoryId: string, path: string, action: "stage" | "unstage") => {
+    (repositoryId: string, path: string, action: "stage" | "unstage" | "reset") => {
       const entry = model.lookup.get(entryKey(repositoryId, path));
       if (!entry) return;
+      if (action === "reset") {
+        setResetFile({
+          input: {
+            directory,
+            repositoryId,
+            action,
+            path,
+            comparison,
+            expectedVersion: entry.file.version,
+          },
+          hasHead: Boolean(entry.repository.head),
+        });
+        return;
+      }
       const paths =
         entry.file.status === "renamed" && entry.file.oldPath
           ? [entry.file.oldPath, entry.file.path]
@@ -903,7 +932,7 @@ function WorkspaceEditor({
         paths: action === "stage" && entry.file.staged ? [entry.file.path] : paths,
       });
     },
-    [directory, model.lookup, repositoryActions.run],
+    [directory, comparison, model.lookup, repositoryActions.run],
   );
   const renderRow = useCallback(
     ({ item, index }: { item: ChangeRow; index: number }) => {
@@ -1207,6 +1236,19 @@ function WorkspaceEditor({
           theme={theme}
           items={menuItems(menu)}
           onClose={() => setMenu(null)}
+        />
+      ) : null}
+      {resetFile ? (
+        <ResetFileDialog
+          path={displayPath(resetFile.input.path)}
+          repository={repositoryLabel(resetFile.input.repositoryId)}
+          hasHead={resetFile.hasHead}
+          theme={theme}
+          onCancel={() => setResetFile(null)}
+          onConfirm={() => {
+            setResetFile(null);
+            void repositoryActions.run(resetFile.input);
+          }}
         />
       ) : null}
       {fileStatusError ? (

@@ -66,6 +66,7 @@ const tools = {
   check: "check",
   stage: "add",
   unstage: "remove",
+  reset: "discard",
   generate: "sparkle",
   pull: "arrow-down",
   push: "arrow-up",
