@@ -35,7 +35,7 @@ Requires **Paseo daemon and client 0.12.0+**, with Git installed on the daemon h
 paseo plugin install https://github.com/MinLeeV5/paseo-gitlens --ref main
 ```
 
-Enable plugins in **Settings → Plugins** on the target daemon. Open a Git workspace, then click the **GitCompare** header icon to open GitLens. You can also select **GitLens · 包含 Submodule** in the Command Center (`⌘K` / `Ctrl+K`). The header entry may appear in the host's overflow menu.
+Enable plugins in **Settings → Plugins** on the target daemon. Open a Git workspace, then click the **GitLens** header icon (black-and-gold on Paseo 0.16+, **GitCompare** on older clients) to open GitLens. You can also select **GitLens · 包含 Submodule** in the Command Center (`⌘K` / `Ctrl+K`). The header entry may appear in the host's overflow menu.
 
 ## Review changes across repositories
 
@@ -142,7 +142,7 @@ Open `http://127.0.0.1:4178`; add `?theme=light` to check the light theme.
 | Command                                     | Purpose                                                                |
 | ------------------------------------------- | ---------------------------------------------------------------------- |
 | `npm run check`                             | Version consistency, TypeScript, formatting, lint, and tests           |
-| `npm run check:compatibility`               | Type checks against Paseo SDK 0.12–0.15                                |
+| `npm run check:compatibility`               | Type checks against Paseo SDK 0.12–0.16                                |
 | `npm run acceptance -- /path/to/repo`       | Compare repository results with native Git                             |
 | `npm run verify:installed -- /path/to/repo` | Verify the installed plugin over real RPC                              |
 | `npm run benchmark:regression`              | Compare frozen sources in an isolated daemon; fail on regression flags |

@@ -1,8 +1,10 @@
 import type { PluginClientContext, PluginHeaderButtonContribution } from "@getpaseo/plugin/client";
 import { expect, it, vi } from "vitest";
+import { GitLensIcon } from "../client/gitlens-icon";
 import contribute from "../index.client";
 
 vi.mock("../client/changes-panel", () => ({ ChangesPanel: () => null }));
+vi.mock("../client/gitlens-icon", () => ({ GitLensIcon: () => null }));
 
 type Page = Awaited<ReturnType<PluginClientContext["paseo"]["workspaces"]["list"]>>;
 type Subscription = NonNullable<Page["subscription"]>;
@@ -28,7 +30,7 @@ function page(ids: string[], nextCursor: string | null = null): Page {
   } as Page;
 }
 
-function host(first = page(["workspace-a", "workspace-b"])) {
+function host(first = page(["workspace-a", "workspace-b"]), customIcons = true) {
   let observer: Observer;
   let command: Parameters<PluginClientContext["addCommandCenterItem"]>[0];
   const headers: {
@@ -40,6 +42,19 @@ function host(first = page(["workspace-a", "workspace-b"])) {
   const removePanel = vi.fn();
   const removeCommand = vi.fn();
   const openPanel = vi.fn();
+  const addWorkspacePanel = vi.fn((value: { icon: unknown }) => {
+    if (!customIcons && typeof value.icon !== "string") {
+      throw new Error("Workspace panel requires a Lucide icon name");
+    }
+    return removePanel;
+  });
+  const addCommandCenterItem = vi.fn((value: typeof command) => {
+    if (!customIcons && typeof value.icon !== "string") {
+      throw new Error("Command requires a Lucide icon name");
+    }
+    command = value;
+    return removeCommand;
+  });
   const subscription = {
     release,
     subscribe(listener: Observer) {
@@ -55,11 +70,8 @@ function host(first = page(["workspace-a", "workspace-b"])) {
   const client = {
     paseo: { workspaces: { list } },
     openPanel,
-    addWorkspacePanel: () => removePanel,
-    addCommandCenterItem(value: typeof command) {
-      command = value;
-      return removeCommand;
-    },
+    addWorkspacePanel,
+    addCommandCenterItem,
     addHeaderButton(contribution: PluginHeaderButtonContribution) {
       const remove = vi.fn();
       headers.push({ contribution, remove });
@@ -74,6 +86,8 @@ function host(first = page(["workspace-a", "workspace-b"])) {
     release,
     unsubscribe,
     openPanel,
+    addWorkspacePanel,
+    addCommandCenterItem,
     removePanel,
     removeCommand,
     snapshot(value: Page) {
@@ -111,7 +125,7 @@ it("shows icon-only shortcuts on load without selecting the command and opens ea
     "workspace-b",
   ]);
   for (const { contribution } of app.headers) {
-    expect(contribution.button).toMatchObject({ title: "打开 GitLens", icon: "GitCompare" });
+    expect(contribution.button).toMatchObject({ title: "打开 GitLens", icon: GitLensIcon });
     expect(contribution.button.label).toBeUndefined();
     if (contribution.button.behavior.kind !== "action") throw new Error("Expected an action");
     contribution.button.behavior.onPress();
@@ -120,8 +134,32 @@ it("shows icon-only shortcuts on load without selecting the command and opens ea
     });
   }
   expect(app.selectCommand()).toHaveBeenCalledWith("changes");
+  for (const register of [app.addWorkspacePanel, app.addCommandCenterItem]) {
+    expect(register).toHaveBeenCalledWith(expect.objectContaining({ icon: GitLensIcon }));
+  }
   expect(app.headers).toHaveLength(2);
   cleanup();
+});
+
+it("uses the original icon on a pre-0.16 client without custom panel icons", async () => {
+  const app = host(undefined, false);
+  const cleanup = contribute(app.client);
+  await Promise.resolve();
+
+  expect(app.addWorkspacePanel).toHaveBeenCalledTimes(2);
+  expect(app.addWorkspacePanel).toHaveBeenLastCalledWith(
+    expect.objectContaining({ icon: "GitCompare" }),
+  );
+  expect(app.addCommandCenterItem).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ icon: "GitCompare" }),
+  );
+  for (const { contribution } of app.headers) {
+    expect(contribution.button.icon).toBe("GitCompare");
+  }
+  expect(app.selectCommand()).toHaveBeenCalledWith("changes");
+  cleanup();
+  expect(app.removePanel).toHaveBeenCalledOnce();
+  expect(app.removeCommand).toHaveBeenCalledOnce();
 });
 
 it("includes older pages and new empty workspaces without duplicate buttons", async () => {

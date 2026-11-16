@@ -35,7 +35,7 @@
 paseo plugin install https://github.com/MinLeeV5/paseo-gitlens --ref main
 ```
 
-在目标 daemon 的 **Settings → Plugins** 中启用插件。进入 Git 工作区，点击顶部 **GitCompare** 图标打开 GitLens；也可在 Command Center（`⌘K` / `Ctrl+K`）选择 **GitLens · 包含 Submodule**。顶部入口可能收在宿主的「更多操作」中。
+在目标 daemon 的 **Settings → Plugins** 中启用插件。进入 Git 工作区，点击顶部 **GitLens** 图标（Paseo 0.16+ 使用黑金图标，旧客户端使用 **GitCompare**）打开 GitLens；也可在 Command Center（`⌘K` / `Ctrl+K`）选择 **GitLens · 包含 Submodule**。顶部入口可能收在宿主的「更多操作」中。
 
 ## 审阅多仓库变更
 
@@ -142,7 +142,7 @@ PASEO_DIFF_ACCEPTANCE_DIRECTORY=/absolute/path/to/repo npm run dev:ui
 | 命令                                        | 用途                                             |
 | ------------------------------------------- | ------------------------------------------------ |
 | `npm run check`                             | 检查版本一致性、TypeScript、格式、lint 和测试    |
-| `npm run check:compatibility`               | 对 Paseo SDK 0.12–0.15 执行类型检查              |
+| `npm run check:compatibility`               | 对 Paseo SDK 0.12–0.16 执行类型检查              |
 | `npm run acceptance -- /path/to/repo`       | 与原生 Git 对照仓库结果                          |
 | `npm run verify:installed -- /path/to/repo` | 通过真实 RPC 验证已安装插件                      |
 | `npm run benchmark:regression`              | 在隔离 daemon 中对测固定源码，出现回退标记时失败 |

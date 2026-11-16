@@ -4,6 +4,8 @@
       "**",
       "!node_modules",
       "!artifacts",
+      "!output",
+      "!tmp",
       "!package-lock.json",
       "!client/generated",
       "!server/generated",

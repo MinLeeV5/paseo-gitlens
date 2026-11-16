@@ -1,5 +1,9 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { ChangesPanel } from "./client/changes-panel";
+import { GitLensIcon } from "./client/gitlens-icon";
+
+type ContributionIcon = Parameters<PluginClientContext["addHeaderButton"]>[0]["button"]["icon"];
+type WithIcon<T> = T extends unknown ? Omit<T, "icon"> & { icon: ContributionIcon } : never;
 
 export default function contribute(client: PluginClientContext) {
   type WorkspacePage = Awaited<ReturnType<typeof client.paseo.workspaces.list>>;
@@ -7,6 +11,7 @@ export default function contribute(client: PluginClientContext) {
   let generation = 0;
   let subscription: WorkspacePage["subscription"];
   let unsubscribe: (() => void) | undefined;
+  let icon: ContributionIcon = GitLensIcon;
   const headerButtons = new Map<string, ReturnType<PluginClientContext["addHeaderButton"]>>();
   const removedWorkspaces = new Set<string>();
   const addHeader = (workspaceId: string) => {
@@ -18,7 +23,7 @@ export default function contribute(client: PluginClientContext) {
         workspaceId,
         button: {
           title: "打开 GitLens",
-          icon: "GitCompare",
+          icon,
           behavior: {
             kind: "action",
             onPress: () => client.openPanel("changes", { workspaceId }),
@@ -50,18 +55,33 @@ export default function contribute(client: PluginClientContext) {
       });
     }
   };
-  const removePanel = client.addWorkspacePanel({
+  const panel = {
     id: "changes",
     title: "GitLens",
-    icon: "GitCompare",
-    context: "workspace",
-    locations: ["workspace", "explorer"],
+    context: "workspace" as const,
+    locations: ["workspace", "explorer"] as const,
     Component: ChangesPanel,
-  });
-  const removeCommand = client.addCommandCenterItem({
+  };
+  // Paseo 0.12–0.15 only accept Lucide names for panel/command icons. Probe the
+  // client registration boundary, rather than the connected daemon's version.
+  // These signatures also keep the guarded 0.16 API typecheckable with older SDKs.
+  const addPanel = client.addWorkspacePanel.bind(client) as (
+    contribution: WithIcon<Parameters<PluginClientContext["addWorkspacePanel"]>[0]>,
+  ) => ReturnType<PluginClientContext["addWorkspacePanel"]>;
+  const addCommand = client.addCommandCenterItem.bind(client) as (
+    contribution: WithIcon<Parameters<PluginClientContext["addCommandCenterItem"]>[0]>,
+  ) => ReturnType<PluginClientContext["addCommandCenterItem"]>;
+  let removePanel: ReturnType<PluginClientContext["addWorkspacePanel"]>;
+  try {
+    removePanel = addPanel({ ...panel, icon });
+  } catch {
+    icon = "GitCompare";
+    removePanel = addPanel({ ...panel, icon });
+  }
+  const removeCommand = addCommand({
     id: "open-changes",
     title: "GitLens · 包含 Submodule",
-    icon: "GitCompare",
+    icon,
     keywords: ["GitLens", "Git", "submodule"],
     context: "workspace",
     onSelect({ openPanel, workspace }) {
