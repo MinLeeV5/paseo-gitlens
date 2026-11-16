@@ -268,10 +268,11 @@ it("uses staged image blobs even after the working image changes or disappears",
   await put(directory, "docs/source.md", "source");
   await commit(directory);
   const image = Buffer.from([0, 1, 255, 128]);
-  await put(directory, "assets/[image]*.png", image);
+  const imagePath = process.platform === "win32" ? "assets/[image].png" : "assets/[image]*.png";
+  await put(directory, imagePath, image);
   await put(directory, "assets/gone.png", image);
-  await command(directory, "add", "assets/[image]*.png", "assets/gone.png");
-  await put(directory, "assets/[image]*.png", "working version");
+  await command(directory, "add", imagePath, "assets/gone.png");
+  await put(directory, imagePath, "working version");
   await unlink(join(directory, "assets/gone.png"));
   await put(directory, "assets/untracked.png", image);
   const input = {
@@ -282,7 +283,7 @@ it("uses staged image blobs even after the working image changes or disappears",
   };
   const images = await service.previewImages({
     ...input,
-    hrefs: ["../assets/[image]*.png", "../assets/gone.png", "../assets/untracked.png"],
+    hrefs: [`../${imagePath}`, "../assets/gone.png", "../assets/untracked.png"],
   });
   expect(images.slice(0, 2).map((image) => image.uri)).toEqual(
     Array(2).fill(`data:image/png;base64,${image.toString("base64")}`),
