@@ -12,6 +12,7 @@ import {
   fileDiffRpc,
   fileDiffViewRpc,
   mermaidRuntimeRpc,
+  previewImagesRpc,
   resolveLinkRpc,
   revealFileRpc,
 } from "./shared/contracts";
@@ -53,6 +54,7 @@ export default function contribute(server: PluginServerContext) {
   server.handle(fileCapabilitiesRpc, () => fileCapabilities());
   server.handle(revealFileRpc, (input) => service.reveal(input));
   server.handle(resolveLinkRpc, (input) => service.resolveLink(input));
+  server.handle(previewImagesRpc, (input) => service.previewImages(input));
   server.handle(mermaidRuntimeRpc, () => mermaidRuntime);
   return () => {
     generations.clear();

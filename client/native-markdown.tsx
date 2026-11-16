@@ -1,6 +1,8 @@
 import type { PluginTheme } from "@getpaseo/plugin";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
-import { Image, ScrollView, Text, type TextStyle, View } from "react-native";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ScrollView, Text, type TextStyle, View } from "react-native";
+import type { PreviewImages } from "../shared/preview-images";
+import { MarkdownImage } from "./image-preview";
 import { type MarkdownNode, markdownNodes } from "./markdown-model";
 import { panelTokens } from "./theme";
 
@@ -12,6 +14,7 @@ export function NativeMarkdown({
   fontWeight,
   navigation,
   onNavigate,
+  images,
 }: {
   content: string;
   theme: PluginTheme;
@@ -20,9 +23,14 @@ export function NativeMarkdown({
   fontWeight?: "400" | "500" | "600";
   navigation?: { fragment: string; request: number };
   onNavigate(href: string): void;
+  images?: PreviewImages;
 }) {
   const c = panelTokens(theme);
-  const nodes = useMemo(() => markdownNodes(content, c.surface0), [content, c.surface0]);
+  const nodes = useMemo(
+    () => markdownNodes(content, c.surface0, images),
+    [content, c.surface0, images],
+  );
+  const [contentWidth, setContentWidth] = useState(280);
   const scroll = useRef<ScrollView>(null);
   const headings = useRef(new Map<string, number>());
   const pendingAnchor = useRef<string | null>(null);
@@ -42,15 +50,25 @@ export function NativeMarkdown({
     if (navigation) revealAnchor(navigation.fragment);
   }, [navigation, revealAnchor]);
 
-  function inline(children: (MarkdownNode | string)[]): ReactNode {
+  function inline(children: (MarkdownNode | string)[], imageWidth = contentWidth): ReactNode {
     return children.map((node) => {
       if (typeof node === "string") return node;
       if (node.tag === "br") return "\n";
       if (node.tag === "input") return node.attributes.checked === "true" ? "☑" : "☐";
       if (node.tag === "img")
-        return (
+        return node.attributes.src ? (
+          <MarkdownImage
+            key={`${node.key}:${node.attributes.src}`}
+            uri={node.attributes.src}
+            label={node.attributes.alt || "图片"}
+            width={imageWidth}
+            requestedWidth={Number(node.attributes.width) || undefined}
+            requestedHeight={Number(node.attributes.height) || undefined}
+            color={c.foregroundMuted}
+          />
+        ) : (
           <Text key={node.key} style={{ color: c.foregroundMuted }}>
-            {node.attributes.alt || "图片"}
+            {node.attributes.alt || "图片"}（图片未加载）
           </Text>
         );
       const style: TextStyle =
@@ -72,7 +90,7 @@ export function NativeMarkdown({
           accessibilityRole={node.tag === "a" ? "link" : undefined}
           onPress={node.tag === "a" ? () => onNavigate(node.attributes.href) : undefined}
         >
-          {inline(node.children)}
+          {inline(node.children, imageWidth)}
         </Text>
       );
     });
@@ -117,7 +135,7 @@ export function NativeMarkdown({
             <View key={item.key} style={{ flexDirection: "row", gap: 8 }}>
               <Text style={textStyle}>{node.tag === "ol" ? `${itemIndex + 1}.` : "•"}</Text>
               <Text selectable style={[textStyle, { flex: 1 }]}>
-                {inline(item.children)}
+                {inline(item.children, Math.max(1, contentWidth - 24))}
               </Text>
             </View>
           ))}
@@ -148,7 +166,7 @@ export function NativeMarkdown({
                         },
                       ]}
                     >
-                      {inline(cell.children)}
+                      {inline(cell.children, 142)}
                     </Text>
                   ),
                 )}
@@ -193,13 +211,9 @@ export function NativeMarkdown({
     if (node.tag === "div") return <View key={node.key}>{children.map(block)}</View>;
     if (node.tag === "img")
       return (
-        <Image
-          key={node.key}
-          accessibilityLabel={node.attributes.alt}
-          source={{ uri: node.attributes.src }}
-          resizeMode="contain"
-          style={{ width: "100%", height: 180 }}
-        />
+        <Text key={node.key} style={{ color: c.foreground }}>
+          {inline([node])}
+        </Text>
       );
     return (
       <Text
@@ -227,6 +241,7 @@ export function NativeMarkdown({
       testID="native-markdown-preview"
       style={{ flex: 1 }}
       contentContainerStyle={{ padding: 20 }}
+      onLayout={(event) => setContentWidth(Math.max(1, event.nativeEvent.layout.width - 40))}
     >
       {nodes.map(block)}
     </ScrollView>

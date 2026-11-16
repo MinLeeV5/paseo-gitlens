@@ -92,9 +92,11 @@ Select **Commit graph** from the view menu to browse the root repository or a su
 
 Open Markdown, static HTML, and images beside your diffs. Markdown supports offline Mermaid diagrams and workspace file links, including unchanged files, submodules, and heading anchors. Staged previews read the index version.
 
+Image files open in preview by default, with fit-to-window, original-size and zoom controls. Markdown image syntax, `<img>` tags and HTML images support workspace-relative paths, root-relative paths, submodules, inline data images and HTTP(S) sources. Linked images remain clickable. Missing or oversized local images show an explanation; use **Refresh preview** to reload the document and its images.
+
 ![Markdown preview with a rendered Mermaid diagram](assets/markdown-preview.png)
 
-HTML previews do not run scripts. Document previews do not load external or relative image resources. Rendered Mermaid and HTML previews are available on desktop/Web; native mobile shows Mermaid source.
+HTML previews do not run scripts. The daemon reads workspace images, using index blobs for local images in staged documents. HTTP(S) images load on the current client; Web previews send no referrer. Local images are limited to **1 MiB** each, **32** distinct references per document, and an **8 MiB** image-content cache budget. Rendered Mermaid and HTML previews are available on desktop/Web. Native mobile supports Markdown images and shows Mermaid source; supported image formats depend on the client's decoder.
 
 ## Configure your workspace
 

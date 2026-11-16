@@ -1,5 +1,6 @@
 import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
+import { MAX_PREVIEW_IMAGES } from "./preview-images";
 
 export const comparisonSchema = z.enum(["head", "staged", "unstaged"]);
 export type Comparison = z.infer<typeof comparisonSchema>;
@@ -153,6 +154,7 @@ export const resolveLinkRpc = defineRpc({
     repositoryId: z.string(),
     path: z.string().min(1),
     href: z.string().min(1).max(8192),
+    comparison: comparisonSchema.optional(),
   }),
   output: z.object({
     repositoryId: z.string(),
@@ -161,6 +163,19 @@ export const resolveLinkRpc = defineRpc({
     version: z.string(),
     fragment: z.string(),
   }),
+});
+export const previewImagesRpc = defineRpc({
+  name: "git.preview-images",
+  input: z.object({
+    directory: z.string().min(1),
+    repositoryId: z.string(),
+    path: z.string().min(1),
+    comparison: comparisonSchema.default("head"),
+    hrefs: z.array(z.string().min(1).max(8192)).max(MAX_PREVIEW_IMAGES),
+  }),
+  output: z.array(
+    z.object({ href: z.string(), uri: z.string().nullable(), message: z.string().nullable() }),
+  ),
 });
 export const fileCapabilitiesRpc = defineRpc({
   name: "git.file-capabilities",

@@ -13,14 +13,20 @@ import type {
   CommitInput,
   HistoryInput,
 } from "../shared/history-contracts";
+import {
+  imageMimeType,
+  MAX_PREVIEW_IMAGE_BYTES,
+  MAX_PREVIEW_IMAGES,
+} from "../shared/preview-images";
 import { parsePreviewLink } from "../shared/preview-links";
 import type { RepositoryAction } from "../shared/repository-contracts";
 import type { PanelSettings } from "../shared/settings";
 import { type CommitMessagePaseo, generatePaseoCommitMessage } from "./commit-message";
 import { FileDiffBatcher } from "./diff";
 import { readContent, revealInFileManager } from "./files";
-import { type GitReadContext, withGitPriority } from "./git";
+import { type GitReadContext, git, withGitPriority } from "./git";
 import { readCommit, readCommitDiff, readHistory } from "./history";
+import { parseIndex } from "./parsers";
 import { digest, RepositoryScanCache, resolveFile, scanWorkspace } from "./repositories";
 import { generateCommitMessage, runRepositoryAction } from "./repository-actions";
 import { RepositoryStore, repositoryBody, SNAPSHOT_TTL } from "./repository-store";
@@ -31,6 +37,13 @@ interface SnapshotInput {
   force?: boolean;
   progressive?: boolean;
   background?: boolean;
+}
+interface PreviewLinkInput {
+  directory: string;
+  repositoryId: string;
+  path: string;
+  href: string;
+  comparison?: Comparison;
 }
 interface SnapshotEntry {
   time: number;
@@ -187,6 +200,8 @@ export class GitChangesService {
         : resolveFile(repository.directory, input.path);
     if (input.scope === "workspace") {
       if (input.path.split(/[\\/]/).includes(".git")) throw new Error("不能打开 Git 内部文件。");
+      // Index blobs do not depend on the working file existing or its symlink target.
+      if (input.comparison === "staged") return repository;
       const canonical = await realpath(absolute);
       const delta = relative(repository.directory, canonical);
       if (
@@ -217,15 +232,16 @@ export class GitChangesService {
   }) {
     return revealInFileManager(await this.fileRepository(input), input.path);
   }
-  async resolveLink(input: {
-    directory: string;
-    repositoryId: string;
-    path: string;
-    href: string;
-  }) {
+  async resolveLink(input: PreviewLinkInput) {
+    const snapshot = await this.snapshot({
+      directory: input.directory,
+      comparison: input.comparison ?? "head",
+    });
+    return this.resolveLinkInSnapshot(input, snapshot);
+  }
+  private async resolveLinkInSnapshot(input: PreviewLinkInput, snapshot: ChangesSnapshot) {
     const link = parsePreviewLink(input.href);
     if (link?.kind !== "file") throw new Error("不是有效的工作区文件链接。");
-    const snapshot = await this.snapshot({ directory: input.directory, comparison: "head" });
     const from = snapshot.repositories.find((repo) => repo.id === input.repositoryId);
     if (from?.state !== "ready") throw new Error("所属仓库不可用。");
     const source = resolveFile(from.directory, input.path);
@@ -256,13 +272,15 @@ export class GitChangesService {
       workspacePath.split(/[\\/]/).includes(".git")
     )
       throw new Error("文件链接必须位于当前工作区内。");
-    let canonical: string;
-    try {
-      canonical = await realpath(target);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT")
-        throw new Error("链接指向的文件或目录不存在。");
-      throw error;
+    let canonical = target;
+    if (input.comparison !== "staged") {
+      try {
+        canonical = await realpath(target);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT")
+          throw new Error("链接指向的文件或目录不存在。");
+        throw error;
+      }
     }
     const canonicalPath = relative(snapshot.directory, canonical);
     if (
@@ -284,15 +302,74 @@ export class GitChangesService {
       })
       .sort((a, b) => b.directory.length - a.directory.length)[0];
     if (!repository) throw new Error("链接所属仓库不可用。");
+    const path = relative(repository.directory, canonical).split(sep).join("/") || ".";
+    if (input.comparison === "staged") {
+      const entry = parseIndex(
+        await git(repository.directory, ["ls-files", "--stage", "-z", "--", path]),
+      ).get(path);
+      if (!entry) throw new Error("暂存区中不存在此图片。");
+      if (entry.stage !== "0" || !["100644", "100755"].includes(entry.mode))
+        throw new Error("暂存区中的符号链接、目录或冲突文件不支持预览。");
+      return {
+        repositoryId: repository.id,
+        path,
+        kind: "file" as const,
+        version: entry.oid,
+        fragment: link.fragment,
+      };
+    }
     const stat = await lstat(canonical);
     if (!stat.isFile() && !stat.isDirectory()) throw new Error("链接目标不是普通文件或目录。");
     return {
       repositoryId: repository.id,
-      path: relative(repository.directory, canonical).split(sep).join("/") || ".",
+      path,
       kind: stat.isDirectory() ? ("directory" as const) : ("file" as const),
       version: `${stat.mtimeMs}:${stat.size}`,
       fragment: link.fragment,
     };
+  }
+  async previewImages(input: {
+    directory: string;
+    repositoryId: string;
+    path: string;
+    comparison: Comparison;
+    hrefs: string[];
+  }) {
+    if (input.hrefs.length > MAX_PREVIEW_IMAGES)
+      throw new Error("单个文档最多预览 32 张本地图片。");
+    let bytes = 0;
+    const results: { href: string; uri: string | null; message: string | null }[] = [];
+    if (!input.hrefs.length) return results;
+    // Resolve a document's assets against one catalog instead of rescanning a
+    // large workspace whenever the ordinary snapshot TTL expires mid-batch.
+    const snapshot = await this.snapshot({
+      directory: input.directory,
+      comparison: input.comparison,
+    });
+    for (const href of new Set(input.hrefs)) {
+      try {
+        const link = parsePreviewLink(href);
+        if (link?.kind !== "file" || !imageMimeType(link.path))
+          throw new Error("不是支持的工作区图片路径。");
+        const target = await this.resolveLinkInSnapshot({ ...input, href }, snapshot);
+        if (target.kind !== "file") throw new Error("图片路径指向目录。");
+        const repository = snapshot.repositories.find((repo) => repo.id === target.repositoryId);
+        if (!repository) throw new Error("链接所属仓库不可用。");
+        const data = await readContent(repository, target.path, input.comparison);
+        if (data.state !== "image") throw new Error(data.message ?? "无法读取此图片。");
+        if (bytes + data.content.length * 2 > MAX_PREVIEW_IMAGE_BYTES)
+          throw new Error("此文档的图片已超过 8 MiB 预览缓存上限。");
+        bytes += data.content.length * 2;
+        results.push({ href, uri: data.content, message: null });
+      } catch (error) {
+        results.push({
+          href,
+          uri: null,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    return results;
   }
   private readonly snapshots = new Map<string, SnapshotEntry>();
   private scanSerial = 0;

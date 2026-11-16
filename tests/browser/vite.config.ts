@@ -18,6 +18,7 @@ import {
   fileDiffRpc,
   fileDiffViewRpc,
   mermaidRuntimeRpc,
+  previewImagesRpc,
   resolveLinkRpc,
   revealFileRpc,
 } from "../../shared/contracts";
@@ -161,6 +162,13 @@ export default defineConfig({
               if (resolve(args.directory) !== resolve(directory))
                 throw new Error("Unexpected acceptance directory");
               response.end(JSON.stringify({ data: await service.resolveLink(args) }));
+              return;
+            }
+            if (input.name === previewImagesRpc.name) {
+              const args = previewImagesRpc.input.parse(input.input);
+              if (resolve(args.directory) !== resolve(directory))
+                throw new Error("Unexpected acceptance directory");
+              response.end(JSON.stringify({ data: await service.previewImages(args) }));
               return;
             }
             for (const [contract, handler] of [

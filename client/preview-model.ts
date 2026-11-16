@@ -1,6 +1,8 @@
+import { imageMimeType, type PreviewImages } from "../shared/preview-images";
 import { parsePreviewLink } from "../shared/preview-links";
 import { mermaidScript } from "./mermaid-preview";
 import { previewBridge } from "./preview-bridge";
+import { htmlImages, imageHtml, replaceImageTags } from "./preview-images";
 import { languageForPath, syntaxPalette, tokenizeLine } from "./syntax";
 
 export type PreviewKind = "markdown" | "html" | "image" | "code";
@@ -8,8 +10,7 @@ export function previewKind(path: string): PreviewKind | null {
   const extension = path.split(".").at(-1)?.toLowerCase();
   if (["md", "markdown"].includes(extension || "")) return "markdown";
   if (["html", "htm", "xhtml"].includes(extension || "")) return "html";
-  if (["png", "jpg", "jpeg", "gif", "webp", "svg", "ico", "avif", "bmp"].includes(extension || ""))
-    return "image";
+  if (imageMimeType(path)) return "image";
   return null;
 }
 export function escapeHtml(text: string) {
@@ -20,18 +21,28 @@ export function escapeHtml(text: string) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
-function safeUrl(url: string, image = false) {
+function safeUrl(url: string) {
   const trimmed = url.trim();
-  if (image)
-    return /^data:image\/(?:png|jpeg|gif|webp|avif|bmp);base64,[a-z\d+/=]+$/i.test(trimmed)
-      ? trimmed
-      : null;
   return parsePreviewLink(trimmed) ? trimmed : null;
 }
-function inline(text: string): string {
+function formatInline(text: string, images: PreviewImages): string {
   // Very long lines and unmatched bracket runs stay plain instead of causing
   // repeated backtracking in link/emphasis recognition.
-  if (text.length > 4096 || (text.match(/\[/g)?.length ?? 0) > 64) return escapeHtml(text);
+  if (text.length > 4096) {
+    // A standalone embedded image can be much longer than an ordinary line.
+    // Recognize only this bounded shape before bypassing the general formatter.
+    const embedded = /^!\[([^\]\n]{0,512})\]\((data:image\/[a-z+-]+;base64,[a-z\d+/=]+)\)$/i.exec(
+      text.trim(),
+    );
+    if (embedded) return imageHtml(embedded[2], embedded[1], images);
+    const rawImages: string[] = [];
+    const remainder = replaceImageTags(text.trim(), (attributes) => {
+      rawImages.push(imageHtml(attributes.src ?? "", attributes.alt ?? "", images, attributes));
+      return "";
+    });
+    return rawImages.length === 1 && !remainder ? rawImages[0] : escapeHtml(text);
+  }
+  if ((text.match(/\[/g)?.length ?? 0) > 64) return escapeHtml(text);
   const slots: { html: string; text: string }[] = [];
   const plain = (value: string) =>
     value.replace(/\uE000(\d+)\uE001/g, (_, index: string) => slots[Number(index)]?.text ?? "");
@@ -51,18 +62,31 @@ function inline(text: string): string {
     const index = slots.push({ html: `<code>${escapeHtml(code)}</code>`, text: code }) - 1;
     return `\uE000${index}\uE001`;
   });
+  source = replaceImageTags(source, (attributes) => {
+    const alt = attributes.alt ?? "图片";
+    const index =
+      slots.push({ html: imageHtml(attributes.src ?? "", alt, images, attributes), text: alt }) - 1;
+    return `\uE000${index}\uE001`;
+  });
+  // Protect images before links so linked badges ([![alt](image)](link)) work too.
   source = source.replace(
-    /(!?)\[([^\]]*)\]\((<[^>\n]+>|[^\s()]*(?:\([^\s()]*\)[^\s()]*)*)(?:\s+"[^"]*")?\)/g,
-    (_, image: string, label: string, url: string) => {
-      const href = safeUrl(url.startsWith("<") ? url.slice(1, -1) : url, Boolean(image));
+    /!\[([^\]]*)\]\((<[^>\n]+>|[^\s()]*(?:\([^\s()]*\)[^\s()]*)*)(?:\s+"[^"]*")?\)/g,
+    (_, label: string, url: string) => {
+      const target = url.startsWith("<") ? url.slice(1, -1) : url;
       const labelText = plain(label);
-      const content = image
-        ? href
-          ? `<img alt="${escapeHtml(labelText)}" src="${escapeHtml(href)}">`
-          : `<span class="asset">🖼 ${escapeHtml(labelText || url)}（图片路径）</span>`
-        : href
-          ? `<a href="${escapeHtml(href)}" rel="noreferrer noopener">${format(label)}</a>`
-          : format(label);
+      const index = slots.push({ html: imageHtml(target, labelText, images), text: labelText }) - 1;
+      return `\uE000${index}\uE001`;
+    },
+  );
+  source = source.replace(
+    /\[([^\]]*)\]\((<[^>\n]+>|[^\s()]*(?:\([^\s()]*\)[^\s()]*)*)(?:\s+"[^"]*")?\)/g,
+    (_, label: string, url: string) => {
+      const target = url.startsWith("<") ? url.slice(1, -1) : url;
+      const href = safeUrl(target);
+      const labelText = plain(label);
+      const content = href
+        ? `<a href="${escapeHtml(href)}" rel="noreferrer noopener">${format(label)}</a>`
+        : format(label);
       const index = slots.push({ html: content, text: labelText }) - 1;
       return `\uE000${index}\uE001`;
     },
@@ -86,8 +110,13 @@ function inline(text: string): string {
 }
 
 // A small, deterministic reader for headings, paragraphs, lists, tasks, tables,
-// quotes and fenced code. Raw HTML is escaped in Markdown documents.
-export function markdownHtml(source: string, background = "#1f1f1f"): string {
+// quotes and fenced code. Only allowlisted image tags survive raw Markdown HTML.
+export function markdownHtml(
+  source: string,
+  background = "#1f1f1f",
+  images: PreviewImages = {},
+): string {
+  const inline = (text: string) => formatInline(text, images);
   const lines = source
     .replace(/\r\n?/g, "\n")
     .replaceAll("\uE000", "")
@@ -244,6 +273,7 @@ export function previewDocument(
     mermaid?: { gzip: string; nonce: string };
     navigation?: { token: string; nonce: string };
     filePath?: string;
+    images?: PreviewImages;
   } = {},
 ): string {
   const css = `:root{color-scheme:${syntaxPalette(colors.background).keyword === "#af00db" ? "light" : "dark"}}*{box-sizing:border-box}html{min-height:100%;background:${colors.background};color:${colors.foreground}}body{margin:0;padding:24px clamp(16px,4vw,48px);font: ${fontSize + 2}px/1.7 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow-wrap:anywhere}body.markdown{max-width:960px;margin:auto}h1,h2,h3,h4{line-height:1.3;margin:1.1em 0 .5em}h1,h2{border-bottom:1px solid ${colors.border};padding-bottom:.3em}h1{font-size:1.8em}h2{font-size:1.45em}p,ul,ol,pre,table,blockquote{margin:.8em 0}pre{padding:14px;overflow:auto;border:1px solid ${colors.border};border-radius:4px;background:${colors.background}}code{font: .88em/1.65 Menlo,Consolas,monospace;white-space:pre-wrap}pre code{white-space:pre}p code,li code{padding:2px 4px;background:${colors.border};border-radius:3px}blockquote{border-left:3px solid ${colors.border};color:${colors.muted};padding:0 14px}a{color:${colors.accent}}img{max-width:100%;height:auto}hr{border:0;border-top:1px solid ${colors.border}}.table{overflow:auto}table{border-collapse:collapse}th,td{border:1px solid ${colors.border};padding:6px 12px}th{text-align:left}.asset{color:${colors.muted};font-size:.9em}li input{vertical-align:middle}::-webkit-scrollbar{width:7px;height:7px}::-webkit-scrollbar-thumb{background:${colors.border};border-radius:6px}html{scrollbar-width:thin;scrollbar-color:${colors.border} transparent}`;
@@ -270,12 +300,14 @@ export function previewDocument(
   }
   const body =
     kind === "markdown"
-      ? markdownHtml(content, colors.background)
+      ? markdownHtml(content, colors.background, options.images)
       : kind === "image"
         ? `<img alt="文件预览" src="${escapeHtml(content)}">`
         : kind === "code"
           ? `<pre><code>${sourceCode}</code></pre>`
-          : content.replace(/<meta\b[^>]*>/gi, "").replace(/<base\b[^>]*>/gi, "");
+          : htmlImages(content, options.images)
+              .replace(/<meta\b[^>]*>/gi, "")
+              .replace(/<base\b[^>]*>/gi, "");
   const mermaid = kind === "markdown" ? options.mermaid : undefined;
   const navigation = kind === "markdown" ? options.navigation : undefined;
   const nonces = [mermaid?.nonce, navigation?.nonce].filter(Boolean);
@@ -285,5 +317,5 @@ export function previewDocument(
   const bridge = navigation
     ? `<script nonce="${navigation.nonce}">${previewBridge(navigation.token)}</script>`
     : "";
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; ${nonces.length ? `script-src ${[...new Set(nonces)].map((nonce) => `'nonce-${nonce}'`).join(" ")};` : ""} style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'; connect-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}${typographyCss}body.code{max-width:none;padding:16px;font-size:${fontSize}px}body.code pre{margin:0;padding:0;border:0}body.code code{font-size:1em}</style></head><body class="${kind}">${body}${bridge}${script}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; ${nonces.length ? `script-src ${[...new Set(nonces)].map((nonce) => `'nonce-${nonce}'`).join(" ")};` : ""} style-src 'unsafe-inline'; img-src data:${kind === "markdown" || kind === "html" ? " https: http:" : ""}; font-src data:; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'; connect-src 'none'"><meta name="referrer" content="no-referrer"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}${typographyCss}body.code{max-width:none;padding:16px;font-size:${fontSize}px}body.code pre{margin:0;padding:0;border:0}body.code code{font-size:1em}</style></head><body class="${kind}">${body}${bridge}${script}</body></html>`;
 }

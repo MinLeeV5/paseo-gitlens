@@ -292,3 +292,13 @@ Paseo 构建器不允许运行模块导入根目录 `package.json`，因此版�
 截图均已实际打开检查：`artifacts/preview-links-markdown.png`、`artifacts/preview-links-menu.png`、`artifacts/preview-links-settings.png`。Markdown 链接导航仅面向桌面 / Web，原生移动端仍回退文本；远程与相对图片资源解析仍未提供。
 
 10:33（北京时间）已重载本机插件，状态为 running。真实 RPC 再次读取指定文档，并将其中首个文件链接解析到 `.harness/skills/remote-device-lab/SKILL.md`；当前主仓 132 个变更、Client 子仓 72 个、Web 0，三仓均 ready。主机设置为 ready，已有偏好保留，新增缓存数量为默认 5。完整报告见 `artifacts/runtime.json`，打包核对见 `artifacts/preview-links-pack.json`。补充浅色设置截图 `artifacts/preview-links-light.png` 已实际打开检查。
+
+## 图片文件与文档内图片
+
+2026-11-16，使用独立临时 Git 仓库和浏览器验收入口验证，未修改业务仓库。
+
+- 图片文件默认进入预览；桌面实测适应窗口、100% 原始尺寸及 125% 放大。375×812 浅色视口中，1440×1000 图片按 24% 比例显示，保留全部缩放按钮。损坏图片显示加载失败说明与重试按钮。
+- Markdown 图片语法、原始 `<img>`、链接包裹的图片徽标以及 HTML 图片均能显示。覆盖工作区相对路径、根路径、编码空格、跨子模块、data URI 和客户端 HTTP 图片；缺失文件显示局部说明，其余文档继续可读，可刷新预览重新取图。
+- 通过 RN Web 验收入口挂载真实 `NativeMarkdown`，在 375×812 浅色视口检查图片比例、HTML 图片宽度、远程图片与缺失提示；点击图片链接能打开目标 Markdown。此项验证原生组件的渲染逻辑，不代表已经在 iOS / Android 真机验证所有图片解码器。
+- Git 集成测试覆盖暂存区与工作目录图片不同、暂存后工作文件消失、子模块真实 index、字面量特殊文件名、符号链接与越界路径、单图 1 MiB 和文档图片内容缓存 8 MiB 上限。解析测试覆盖图片标签属性白名单、危险协议、代码示例、重复引用和较长的内嵌 data 图片。
+- 未新增运行依赖或提高最低 Paseo 版本。TypeScript 与 Biome 通过。全量 189 项测试使用 `npm test -- --maxWorkers=2` 运行通过；默认高并发在本机触发了多项 Git 集成测试的 5 秒超时，降低并发后通过。图片相关的最终 52 项测试单独复验通过。

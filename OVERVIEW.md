@@ -16,6 +16,8 @@ AI drafts send file paths, change metadata, diff excerpts, and instructions to t
 
 ## Requirements and scope
 
-Requires **Paseo daemon and client 0.12.0+**, with Git on the host. Files and previews are limited to **1 MiB**, patches to **2 MiB**. HTML and rendered Mermaid are for desktop/Web; native mobile shows Mermaid source.
+Image files open in preview with fit, original-size and zoom controls. Documents support local relative paths, submodules, inline data images and HTTP(S) images.
+
+Requires **Paseo daemon and client 0.12.0+**, with Git on the host. Files and individual local images are limited to **1 MiB**, patches to **2 MiB**. Each document supports **32** distinct local image references with an **8 MiB** image-content cache budget. HTML and rendered Mermaid are for desktop/Web; native mobile supports Markdown images and shows Mermaid source.
 
 Submodule initialization, branch switching, discarding changes, and arbitrary-ref comparisons are not provided.

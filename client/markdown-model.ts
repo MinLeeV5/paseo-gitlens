@@ -1,3 +1,4 @@
+import type { PreviewImages } from "../shared/preview-images";
 import { markdownHtml } from "./preview-model";
 
 export type MarkdownNode = {
@@ -20,10 +21,14 @@ function decode(text: string) {
 
 // Read only the markup emitted by our Markdown formatter, never arbitrary HTML.
 // This shares escaping, supported syntax and heading IDs with the web preview.
-export function markdownNodes(source: string, background: string): MarkdownNode[] {
+export function markdownNodes(
+  source: string,
+  background: string,
+  images?: PreviewImages,
+): MarkdownNode[] {
   const root: MarkdownNode = { key: -1, tag: "root", attributes: {}, children: [] };
   const stack = [root];
-  for (const match of markdownHtml(source, background).matchAll(/<([^>]+)>|([^<]+)/g)) {
+  for (const match of markdownHtml(source, background, images).matchAll(/<([^>]+)>|([^<]+)/g)) {
     const parent = stack[stack.length - 1];
     if (match[2] !== undefined) {
       parent.children.push(decode(match[2]));

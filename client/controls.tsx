@@ -138,6 +138,7 @@ export function ToolButton({
   disabled = false,
   busy = false,
   text,
+  size = 28,
 }: {
   label: string;
   icon?: IconName;
@@ -147,6 +148,7 @@ export function ToolButton({
   disabled?: boolean;
   busy?: boolean;
   text?: string;
+  size?: number;
 }) {
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -184,8 +186,8 @@ export function ToolButton({
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       style={{
-        minWidth: 28,
-        minHeight: 28,
+        minWidth: size,
+        minHeight: size,
         paddingHorizontal: text ? 7 : 5,
         flexDirection: "row",
         gap: 5,

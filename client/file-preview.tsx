@@ -1,14 +1,22 @@
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useRpc } from "@getpaseo/plugin/client";
 import { createElement, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Image, Platform, ScrollView, Text, View } from "react-native";
-import { type FileContent, fileContentRpc, mermaidRuntimeRpc } from "../shared/contracts";
+import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
+import {
+  type FileContent,
+  fileContentRpc,
+  mermaidRuntimeRpc,
+  previewImagesRpc,
+} from "../shared/contracts";
+import { MAX_PREVIEW_IMAGES, type PreviewImages } from "../shared/preview-images";
 import { parsePreviewLink } from "../shared/preview-links";
 import { ToolButton } from "./controls";
 import { Icon } from "./icons";
+import { ImagePreview } from "./image-preview";
 import { hasMermaid } from "./mermaid-preview";
 import { NativeMarkdown } from "./native-markdown";
-import { type PreviewKind, previewDocument } from "./preview-model";
+import { htmlImages, localImageReferences } from "./preview-images";
+import { markdownHtml, type PreviewKind, previewDocument } from "./preview-model";
 import { panelTokens } from "./theme";
 
 let renderer: Promise<string> | null = null;
@@ -54,6 +62,7 @@ export function FilePreview({
   onCost?(bytes: number): void;
 }) {
   const call = useRpc(fileContentRpc);
+  const loadImages = useRpc(previewImagesRpc);
   const loadRenderer = useRpc(mermaidRuntimeRpc);
   const c = panelTokens(theme);
   const [attempt, setAttempt] = useState(0);
@@ -62,10 +71,11 @@ export function FilePreview({
   const [state, setState] = useState<{
     key: string;
     data: FileContent | null;
+    images: PreviewImages;
     error: string | null;
-  }>({ key: "", data: null, error: null });
+  }>({ key: "", data: null, images: {}, error: null });
   // Keep a small cache local to the mounted preview. Closing/switching releases it.
-  const cache = useRef<{ key: string; data: FileContent } | null>(null);
+  const cache = useRef<{ key: string; data: FileContent; images: PreviewImages } | null>(null);
   const key = JSON.stringify([directory, repositoryId, path, version, comparison, scope, attempt]);
   const frame = useRef<PreviewFrame>(null);
   const onLink = useRef(onNavigate);
@@ -98,15 +108,44 @@ export function FilePreview({
   useEffect(() => {
     let stopped = false;
     if (cache.current?.key === key) {
-      setState({ key, data: cache.current.data, error: null });
+      setState({ ...cache.current, error: null });
       return;
     }
-    setState({ key, data: null, error: null });
+    setState({ key, data: null, images: {}, error: null });
     void call({ directory, repositoryId, path, comparison, scope }).then(
-      (data) => {
+      async (data) => {
+        if (stopped) return;
+        const images: PreviewImages = Object.create(null);
+        if (
+          data.state === "text" &&
+          (kind === "markdown" || (kind === "html" && Platform.OS === "web"))
+        ) {
+          const markup =
+            kind === "markdown" ? markdownHtml(data.content) : htmlImages(data.content);
+          const hrefs = localImageReferences(markup);
+          for (const href of hrefs)
+            images[href] = { uri: null, message: "单个文档最多预览 32 张本地图片。" };
+          if (hrefs.length) {
+            const requested = hrefs.slice(0, MAX_PREVIEW_IMAGES);
+            try {
+              const loaded = await loadImages({
+                directory,
+                repositoryId,
+                path,
+                comparison,
+                hrefs: requested,
+              });
+              for (const image of loaded)
+                images[image.href] = { uri: image.uri, message: image.message };
+            } catch {
+              for (const href of requested)
+                images[href] = { uri: null, message: "图片读取失败，请重试预览。" };
+            }
+          }
+        }
         if (!stopped) {
-          cache.current = { key, data };
-          setState({ key, data, error: null });
+          cache.current = { key, data, images };
+          setState({ key, data, images, error: null });
         }
       },
       (error: unknown) => {
@@ -114,6 +153,7 @@ export function FilePreview({
           setState({
             key,
             data: null,
+            images: {},
             error: error instanceof Error ? error.message : String(error),
           });
       },
@@ -121,16 +161,24 @@ export function FilePreview({
     return () => {
       stopped = true;
     };
-  }, [call, key, directory, repositoryId, path, comparison, scope]);
-  const current = state.key === key ? state : { data: null, error: null };
+  }, [call, loadImages, key, directory, repositoryId, path, comparison, scope, kind]);
+  const current = state.key === key ? state : { data: null, images: {}, error: null };
   const diagrams =
     Platform.OS === "web" &&
     kind === "markdown" &&
     current.data?.state === "text" &&
     hasMermaid(current.data.content);
   useEffect(() => {
-    if (current.data) onCost?.(current.data.content.length * 2 + (diagrams ? 8 * 1024 * 1024 : 0));
-  }, [current.data, diagrams, onCost]);
+    if (current.data)
+      onCost?.(
+        current.data.content.length * 2 +
+          Object.values(current.images).reduce(
+            (sum, image) => sum + (image.uri?.length ?? 0) * 2,
+            0,
+          ) +
+          (diagrams ? 8 * 1024 * 1024 : 0),
+      );
+  }, [current.data, current.images, diagrams, onCost]);
   useEffect(() => {
     if (!diagrams || runtime || runtimeError) return;
     let stopped = false;
@@ -154,7 +202,7 @@ export function FilePreview({
   }, [diagrams, loadRenderer, runtime, runtimeError]);
   const document = useMemo(
     () =>
-      Platform.OS === "web" && current.data && ["text", "image"].includes(current.data.state)
+      Platform.OS === "web" && current.data?.state === "text"
         ? previewDocument(
             current.data.content,
             kind,
@@ -170,6 +218,7 @@ export function FilePreview({
               fontFamily,
               fontWeight,
               filePath: path,
+              images: current.images,
               ...(kind === "markdown" ? { navigation: identity } : {}),
               ...(diagrams && runtime
                 ? {
@@ -184,6 +233,7 @@ export function FilePreview({
         : "",
     [
       current.data,
+      current.images,
       kind,
       c.surface0,
       c.foreground,
@@ -241,9 +291,53 @@ export function FilePreview({
         <ActivityIndicator color={c.accent} />
       </View>
     );
+  if (current.data.state === "image")
+    return (
+      <ImagePreview
+        key={key}
+        uri={current.data.content}
+        label={`${path} 文件预览`}
+        theme={theme}
+        onCost={onCost}
+        onReload={() => setAttempt((value) => value + 1)}
+      />
+    );
+  const failedImages = Object.values(current.images).filter((image) => image.message).length;
+  const previewActions =
+    kind === "markdown" || kind === "html" ? (
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          gap: 8,
+          paddingHorizontal: 8,
+          borderBottomWidth: 1,
+          borderBottomColor: c.border,
+        }}
+      >
+        {failedImages ? (
+          <Text
+            accessibilityLiveRegion="polite"
+            style={{ flex: 1, color: c.foregroundMuted, fontSize: 12 }}
+          >
+            {failedImages} 张图片未能加载
+          </Text>
+        ) : null}
+        <ToolButton
+          theme={theme}
+          icon="refresh"
+          label="重新加载预览及图片"
+          text="刷新预览"
+          size={Platform.OS === "web" ? 28 : 44}
+          onPress={() => setAttempt((value) => value + 1)}
+        />
+      </View>
+    ) : null;
   if (Platform.OS === "web")
     return (
       <View style={{ flex: 1, minHeight: 0 }}>
+        {previewActions}
         {diagrams && runtimeError ? (
           <View
             accessibilityRole="alert"
@@ -284,27 +378,22 @@ export function FilePreview({
         })}
       </View>
     );
-  if (current.data.state === "image")
-    return (
-      <Image
-        accessibilityLabel={`${path} 文件预览`}
-        source={{ uri: current.data.content }}
-        resizeMode="contain"
-        style={{ flex: 1 }}
-      />
-    );
   if (kind === "markdown")
     return (
-      <NativeMarkdown
-        key={key}
-        content={current.data.content}
-        theme={theme}
-        fontSize={fontSize}
-        fontFamily={fontFamily}
-        fontWeight={fontWeight}
-        navigation={navigation}
-        onNavigate={onNavigate}
-      />
+      <View style={{ flex: 1, minHeight: 0 }}>
+        {previewActions}
+        <NativeMarkdown
+          key={key}
+          content={current.data.content}
+          theme={theme}
+          fontSize={fontSize}
+          fontFamily={fontFamily}
+          fontWeight={fontWeight}
+          navigation={navigation}
+          onNavigate={onNavigate}
+          images={current.images}
+        />
+      </View>
     );
   return (
     <ScrollView contentContainerStyle={{ padding: 20 }}>

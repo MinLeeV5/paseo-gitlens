@@ -288,7 +288,7 @@ const ChangeItem = memo(function ChangeItem({
     <View style={[styles.file, styles.fileWithActions, compact && styles.touchRow, ...rowFeedback]}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`查看 diff ${label}`}
+        accessibilityLabel={`查看文件 ${label}`}
         ref={(node) => {
           onRegister(item.key, node);
           setWebTitle(node, label);
@@ -706,7 +706,9 @@ function WorkspaceEditor({
   const activeRepositoryId = focusedRepository ?? currentTab?.repositoryId;
   const kind = selected ? (previewKind(selected.file.path) ?? (linked ? "code" : null)) : null;
   const preview = Boolean(
-    kind && selectedKey && (linked || (previews[selectedKey] ?? settings.previewDefault)),
+    kind &&
+      selectedKey &&
+      (linked || (previews[selectedKey] ?? (kind === "image" || settings.previewDefault))),
   );
   useEffect(() => {
     if (!initialized.current && model.entries.length) {

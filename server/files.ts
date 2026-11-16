@@ -1,22 +1,13 @@
 import { constants } from "node:fs";
 import { lstat, open, realpath } from "node:fs/promises";
-import { dirname, extname, relative, sep } from "node:path";
+import { dirname, relative, sep } from "node:path";
 import { execCommand } from "@getpaseo/plugin/server";
 import type { Comparison, FileContent, RepositorySnapshot } from "../shared/contracts";
+import { imageMimeType } from "../shared/preview-images";
 import { GitError, git } from "./git";
+import { parseIndex } from "./parsers";
 import { MAX_FILE_BYTES, resolveFile } from "./repositories";
 
-const imageTypes: Record<string, string> = {
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".gif": "image/gif",
-  ".webp": "image/webp",
-  ".svg": "image/svg+xml",
-  ".ico": "image/x-icon",
-  ".avif": "image/avif",
-  ".bmp": "image/bmp",
-};
 function contentResult(path: string, comparison: Comparison): FileContent {
   return {
     path,
@@ -36,16 +27,21 @@ export async function readContent(
   try {
     if (comparison === "staged") {
       // Use the actual index blob, never the working file for staged previews.
-      const file = repository.files.find((file) => file.path === path);
-      if (file?.status === "deleted")
-        return { ...result, state: "missing", message: "此文件已从暂存区删除。" };
-      const size = Number(
-        (await git(repository.directory, ["cat-file", "-s", `:0:${path}`])).trim(),
-      );
+      const entry = parseIndex(
+        await git(repository.directory, ["ls-files", "--stage", "-z", "--", path]),
+      ).get(path);
+      if (!entry) return { ...result, state: "missing", message: "暂存区中不存在此文件。" };
+      if (entry.stage !== "0" || !["100644", "100755"].includes(entry.mode))
+        return {
+          ...result,
+          state: "unsupported",
+          message: "暂存区中的符号链接、目录或冲突文件不支持预览。",
+        };
+      const size = Number((await git(repository.directory, ["cat-file", "-s", entry.oid])).trim());
       if (size > MAX_FILE_BYTES)
         return { ...result, state: "too_large", message: "文件超过 1 MiB，无法预览。" };
       bytes = Buffer.from(
-        await git(repository.directory, ["show", `:0:${path}`], {
+        await git(repository.directory, ["cat-file", "blob", entry.oid], {
           maxBuffer: MAX_FILE_BYTES + 1,
           encoding: "base64",
         }),
@@ -85,7 +81,7 @@ export async function readContent(
   }
   if (bytes.length > MAX_FILE_BYTES)
     return { ...result, state: "too_large", message: "文件超过 1 MiB，无法预览。" };
-  const mime = imageTypes[extname(path).toLowerCase()];
+  const mime = imageMimeType(path);
   if (mime)
     return {
       ...result,

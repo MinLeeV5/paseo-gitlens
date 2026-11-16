@@ -160,12 +160,14 @@ describe("file preview", () => {
     expect(html).toContain("<blockquote>note</blockquote>");
     expect(html).toContain("<pre><code><span");
   });
-  it("escapes raw Markdown HTML and rejects executable links and external image requests", () => {
+  it("escapes executable Markdown HTML and links while allowing safe image sources", () => {
     const html = markdownHtml(
       '<img src=x onerror="alert(1)">\n\n[click](javascript:alert) ![remote](https://example.com/a.png) `</code><script>bad()</script>`',
     );
     expect(html).not.toContain("<script>");
-    expect(html).not.toContain("<img ");
+    expect(html).not.toContain("onerror=");
+    expect(html).toContain('src="https://example.com/a.png"');
+    expect(html).toContain('referrerpolicy="no-referrer"');
     expect(html).not.toContain('href="javascript:');
     expect(html).toContain("&lt;script&gt;");
   });
