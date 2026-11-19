@@ -342,6 +342,15 @@ export function SettingsPanel({
                   { value: true, label: "目录树" },
                 ])}
                 <Text style={hintStyle}>同时应用于变更文件和提交图中的文件列表。</Text>
+                {segmented("repositorySort", "仓库排序", [
+                  { value: "fileCount", label: "文件修改数" },
+                  { value: "loadOrder", label: "加载顺序" },
+                ])}
+                {toggle(
+                  "showCleanRepositories",
+                  "显示无待处理的仓库",
+                  "关闭后隐藏文件更改、待推送和待拉取均为 0 的仓库。",
+                )}
                 {segmented("scrollbar", "滚动条", [
                   { value: "thin", label: "纤细" },
                   { value: "auto", label: "系统" },

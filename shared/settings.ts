@@ -8,6 +8,8 @@ export const panelSettingsSchema = z.object({
   tree: z.boolean().default(false),
   sidebarWidth: z.number().min(180).max(600).default(240),
   sidebarVisible: z.boolean().default(true),
+  repositorySort: z.enum(["fileCount", "loadOrder"]).default("fileCount"),
+  showCleanRepositories: z.boolean().default(false),
   mode: z.preprocess(
     (value) => (value === "patch" ? "unified" : value),
     z.enum(["unified", "split"]).default("split"),

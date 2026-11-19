@@ -7,7 +7,7 @@
 <p align="center"><strong>Review and commit across repositories, without leaving Paseo.</strong></p>
 
 <p align="center">
-  <a href="package.json"><img src="https://img.shields.io/badge/version-0.7.0-2DA44E" alt="Version 0.7.0" /></a>
+  <a href="package.json"><img src="https://img.shields.io/badge/version-0.8.0-2DA44E" alt="Version 0.8.0" /></a>
   <a href="paseo-plugin.json"><img src="https://img.shields.io/badge/Paseo-0.12.0%2B-0078D4" alt="Paseo 0.12.0 or later" /></a>
 </p>
 
@@ -103,6 +103,8 @@ HTML previews do not run scripts. The daemon reads workspace images, using index
 ## Configure your workspace
 
 **Settings** groups appearance, code, comparison, behavior, and commit options. Adjust fonts, layout, refresh interval, and the default view; preferences are saved per Paseo host. [View settings](assets/settings.png).
+
+The Changes sidebar sorts repositories by changed-file count and hides repositories with no changes and zero incoming and outgoing commits by default. Under **Appearance**, choose **Load order** or show clean repositories.
 
 The last **5 visited tabs** retain their contents and scroll positions by default; configure 1–10. Automatic refresh defaults to 2 seconds after a scan, pauses in the background, and can be disabled. Narrow panels use separate list and diff pages.
 

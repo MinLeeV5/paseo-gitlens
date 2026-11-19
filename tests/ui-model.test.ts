@@ -5,6 +5,7 @@ import {
   folderKey,
   repositoryName,
   resolveCollapsedRows,
+  resolveSidebarRepositories,
 } from "../client/changes-model";
 import { repositorySchema } from "../shared/contracts";
 
@@ -39,6 +40,43 @@ it.each([
   ["/work/root/modules/client", "modules/client", "client"],
 ])("uses the repository directory name for %s", (directory, relativePath, expected) => {
   expect(repositoryName({ directory, relativePath })).toBe(expected);
+});
+
+it("sorts repositories by descending file count with load order preserved for ties", () => {
+  const repos = [
+    repository(".", [{ path: "README.md" }]),
+    repository("z", [{ path: "z.ts" }]),
+    repository("a", [{ path: "a.ts" }, { path: "b.ts" }]),
+  ];
+  expect(resolveSidebarRepositories(repos, "fileCount", true).map((repo) => repo.id)).toEqual([
+    "a",
+    ".",
+    "z",
+  ]);
+  expect(resolveSidebarRepositories(repos, "loadOrder", true).map((repo) => repo.id)).toEqual([
+    ".",
+    "z",
+    "a",
+  ]);
+});
+
+it("only hides ready repositories with zero changes and known zero sync counts", () => {
+  const synced = { aheadCount: 0, behindCount: 0 };
+  const repos = [
+    { ...repository(".", []), ...synced },
+    { ...repository("changed", [{ path: "index.ts" }]), ...synced },
+    { ...repository("staged", []), ...synced, stagedCount: 1 },
+    { ...repository("unstaged", []), ...synced, unstagedCount: 1 },
+    { ...repository("conflicted", []), ...synced, conflictCount: 1 },
+    { ...repository("push", []), ...synced, aheadCount: 1 },
+    { ...repository("pull", []), ...synced, behindCount: 1 },
+    repository("unknown", []),
+    { ...repository("uninitialized", []), ...synced, state: "uninitialized" as const },
+    { ...repository("error", []), ...synced, state: "error" as const },
+  ];
+
+  expect(resolveSidebarRepositories(repos, "loadOrder", false)).toEqual(repos.slice(1));
+  expect(resolveSidebarRepositories(repos, "loadOrder", true)).toEqual(repos);
 });
 
 it("keeps identical paths in different repositories independently selectable and collapsible", () => {

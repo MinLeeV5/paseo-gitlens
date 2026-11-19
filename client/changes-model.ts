@@ -1,4 +1,5 @@
 import type { Comparison, FileChange, RepositorySnapshot } from "../shared/contracts";
+import type { PanelSettings } from "../shared/settings";
 
 export const statusLabels: Record<FileChange["status"], { badge: string; label: string }> = {
   added: { badge: "A", label: "新增" },
@@ -51,6 +52,28 @@ export function folderKey(repositoryId: string, path: string) {
 export function repositoryName(repository: Pick<RepositorySnapshot, "directory" | "relativePath">) {
   const path = (repository.relativePath || repository.directory).replace(/[\\/]+$/, "");
   return path.split(/[\\/]/).at(-1) || path;
+}
+
+export function resolveSidebarRepositories(
+  repositories: readonly RepositorySnapshot[],
+  repositorySort: PanelSettings["repositorySort"],
+  showCleanRepositories: boolean,
+): RepositorySnapshot[] {
+  // Status counts include changes outside the current comparison. Null sync counts are unknown.
+  const visible = showCleanRepositories
+    ? [...repositories]
+    : repositories.filter(
+        (repository) =>
+          repository.state !== "ready" ||
+          repository.files.length > 0 ||
+          repository.stagedCount > 0 ||
+          repository.unstagedCount > 0 ||
+          repository.conflictCount > 0 ||
+          repository.aheadCount !== 0 ||
+          repository.behindCount !== 0,
+      );
+  if (repositorySort === "fileCount") visible.sort((a, b) => b.files.length - a.files.length);
+  return visible;
 }
 
 export function resolveCollapsedRows(

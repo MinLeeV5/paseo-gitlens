@@ -44,6 +44,7 @@ import {
   entryKey,
   repositoryName,
   resolveCollapsedRows,
+  resolveSidebarRepositories,
   statusLabels,
 } from "./changes-model";
 import { InputField, setWebTitle, ToolButton } from "./controls";
@@ -542,7 +543,16 @@ function WorkspaceEditor({
   const [page, setPage] = useState<"changes" | "diff">("changes");
   useSystemBack(active && compact && page === "diff", () => setPage("changes"));
   const { values: settings, update: updateSettings } = preferences;
-  const { comparison, tree, automatic, mode, context, ignoreWhitespace } = settings;
+  const {
+    comparison,
+    tree,
+    automatic,
+    mode,
+    context,
+    ignoreWhitespace,
+    repositorySort,
+    showCleanRepositories,
+  } = settings;
   const [filter, setFilter] = useState("");
   const query = useDeferredValue(filter.trim().toLocaleLowerCase());
   const [collapseOverrides, setCollapseOverrides] = useState<Map<string, boolean>>(() => new Map());
@@ -627,25 +637,25 @@ function WorkspaceEditor({
   const changes = useChanges(directory, comparison, automatic && active, settings.refreshInterval);
   const repositoryActions = useRepositoryActions(directory, changes.refresh, workspaceId);
   const repositories = changes.data?.repositories;
+  const sidebarRepositories = useMemo(
+    () => resolveSidebarRepositories(repositories ?? [], repositorySort, showCleanRepositories),
+    [repositories, repositorySort, showCleanRepositories],
+  );
+  const allRepositoriesHidden = Boolean(repositories?.length && !sidebarRepositories.length);
   const collapsed = useMemo(
     () => resolveCollapsedRows(repositories ?? [], collapseOverrides),
     [repositories, collapseOverrides],
   );
+  const sidebarRows = useMemo(
+    () => buildChangeRows(sidebarRepositories, query, tree, collapsed),
+    [sidebarRepositories, query, tree, collapsed],
+  );
   const model = useMemo(() => {
-    const repos = repositories ?? [];
-    const entries = repos.flatMap((repository) =>
+    const entries = (repositories ?? []).flatMap((repository) =>
       repository.files.map((file) => ({ repository, file })),
     );
-    const filtered = query
-      ? entries.filter(({ repository, file }) =>
-          `${repository.relativePath}/${file.path}\n${file.oldPath ?? ""}`
-            .toLocaleLowerCase()
-            .includes(query),
-        )
-      : entries;
     return {
       entries,
-      filtered,
       lookup: new Map(
         entries.map((entry) => [entryKey(entry.repository.id, entry.file.path), entry]),
       ),
@@ -657,22 +667,21 @@ function WorkspaceEditor({
         }),
         { additions: 0, deletions: 0, incomplete: false },
       ),
-      rows: buildChangeRows(repos, query, tree, collapsed),
     };
-  }, [repositories, query, tree, collapsed]);
+  }, [repositories]);
   const repositoryHeaders = useMemo(
-    () => model.rows.flatMap((row, index) => (row.kind === "repository" ? [index] : [])),
-    [model.rows],
+    () => sidebarRows.flatMap((row, index) => (row.kind === "repository" ? [index] : [])),
+    [sidebarRows],
   );
   const fileListMinWidth = useMemo(() => {
     if (!tree) return 0;
-    const depth = model.rows.reduce(
+    const depth = sidebarRows.reduce(
       (max, row) => (row.kind === "folder" || row.kind === "file" ? Math.max(max, row.depth) : max),
       0,
     );
     // Reserve room for names and actions after the deepest visible indentation.
     return 220 + Math.min(depth, MAX_TREE_INDENT_DEPTH) * TREE_INDENT;
-  }, [model.rows, tree]);
+  }, [sidebarRows, tree]);
   const selectedKey = tabs.active;
   const linked = selectedKey ? linkedFiles[selectedKey] : undefined;
   const linkedPath = linked?.path;
@@ -750,7 +759,10 @@ function WorkspaceEditor({
   );
   const hunkRequest = position?.request ?? 0;
   const hunkTarget = position?.view === navigationViewKey ? position : INITIAL_HUNK_NAVIGATION;
-  const visibleFiles = useMemo(() => model.rows.filter((row) => row.kind === "file"), [model.rows]);
+  const visibleFiles = useMemo(
+    () => sidebarRows.filter((row) => row.kind === "file"),
+    [sidebarRows],
+  );
   const fileIndex = visibleFiles.findIndex((row) => row.key === (focusedFile ?? selectedKey));
   const toggle = useCallback(
     (key: string) =>
@@ -785,7 +797,7 @@ function WorkspaceEditor({
     selectFile(next.repository.id, next.file.path);
     pendingFocus.current = next.key;
     listRef.current?.scrollToIndex({
-      index: model.rows.indexOf(next),
+      index: sidebarRows.indexOf(next),
       animated: false,
       viewPosition: 0.5,
     });
@@ -808,7 +820,7 @@ function WorkspaceEditor({
     selectFile(next.repository.id, next.file.path);
     if (compact) setPage("changes");
     listRef.current?.scrollToIndex({
-      index: model.rows.indexOf(next),
+      index: sidebarRows.indexOf(next),
       animated: false,
       viewPosition: 0.5,
     });
@@ -946,7 +958,7 @@ function WorkspaceEditor({
           style={[
             styles.repositoryCardRow,
             item.kind === "repository" && styles.repositoryCardTop,
-            model.rows[index + 1]?.repository.id !== item.repository.id &&
+            sidebarRows[index + 1]?.repository.id !== item.repository.id &&
               styles.repositoryCardBottom,
             item.repository.id === activeRepositoryId && styles.repositoryCardActive,
           ]}
@@ -992,7 +1004,7 @@ function WorkspaceEditor({
     [
       styles,
       theme,
-      model.rows,
+      sidebarRows,
       tree,
       compact,
       selectedKey,
@@ -1298,10 +1310,15 @@ function WorkspaceEditor({
                 theme={theme}
                 label="折叠或展开全部仓库"
                 icon="collapse"
+                disabled={!sidebarRepositories.length}
                 onPress={() => {
-                  const keys = (repositories ?? []).map((repo) => `repo:${repo.id}`);
+                  const keys = sidebarRepositories.map((repo) => `repo:${repo.id}`);
                   const collapse = !keys.every((key) => collapsed.has(key));
-                  setCollapseOverrides(new Map(keys.map((key) => [key, collapse])));
+                  setCollapseOverrides((previous) => {
+                    const next = new Map(previous);
+                    for (const key of keys) next.set(key, collapse);
+                    return next;
+                  });
                 }}
               />
               <ToolButton
@@ -1403,7 +1420,7 @@ function WorkspaceEditor({
                   ref={listRef}
                   style={styles.list}
                   contentContainerStyle={styles.listContent}
-                  data={model.rows}
+                  data={sidebarRows}
                   stickyHeaderIndices={repositoryHeaders}
                   stickyHeaderHiddenOnScroll={false}
                   renderItem={renderRow}
@@ -1420,8 +1437,22 @@ function WorkspaceEditor({
                   ListEmptyComponent={
                     <View style={styles.loading}>
                       <Icon name="search" color={colors.foregroundMuted} size={24} />
-                      <Text style={styles.muted}>{query ? "没有匹配的更改" : "没有可用仓库"}</Text>
-                      {query ? (
+                      <Text style={styles.muted}>
+                        {allRepositoriesHidden
+                          ? "无待处理的仓库已隐藏"
+                          : query
+                            ? "没有匹配的更改"
+                            : "没有可用仓库"}
+                      </Text>
+                      {allRepositoriesHidden ? (
+                        <ToolButton
+                          theme={theme}
+                          label="显示无待处理的仓库"
+                          text="显示无待处理的仓库"
+                          size={44}
+                          onPress={() => updateSettings({ showCleanRepositories: true })}
+                        />
+                      ) : query ? (
                         <ToolButton
                           theme={theme}
                           label="清除筛选"

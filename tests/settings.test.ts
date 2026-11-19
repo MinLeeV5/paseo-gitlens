@@ -17,3 +17,14 @@ it.each(["changes", "history"])("accepts %s as the default view", (defaultView) 
 it("rejects an unsupported default view", () => {
   expect(panelSettingsSchema.safeParse({ defaultView: "diff" }).success).toBe(false);
 });
+
+it("defaults existing settings to file count order and hides clean repositories", () => {
+  expect(panelSettingsSchema.parse({ tree: true })).toMatchObject({
+    tree: true,
+    repositorySort: "fileCount",
+    showCleanRepositories: false,
+  });
+  expect(
+    panelSettingsSchema.parse({ repositorySort: "loadOrder", showCleanRepositories: true }),
+  ).toMatchObject({ repositorySort: "loadOrder", showCleanRepositories: true });
+});

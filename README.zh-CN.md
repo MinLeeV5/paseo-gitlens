@@ -7,7 +7,7 @@
 <p align="center"><strong>在 Paseo 中审阅多仓库变更，提交代码并追溯历史。</strong></p>
 
 <p align="center">
-  <a href="package.json"><img src="https://img.shields.io/badge/version-0.7.0-2DA44E" alt="版本 0.7.0" /></a>
+  <a href="package.json"><img src="https://img.shields.io/badge/version-0.8.0-2DA44E" alt="版本 0.8.0" /></a>
   <a href="paseo-plugin.json"><img src="https://img.shields.io/badge/Paseo-0.12.0%2B-0078D4" alt="Paseo 0.12.0 及以上" /></a>
 </p>
 
@@ -103,6 +103,8 @@ HTML 预览不运行脚本。工作区图片由 daemon 读取，已暂存文档�
 ## 按习惯配置
 
 **设置**分为外观、代码、比较、行为和提交。可调整字体、布局、刷新间隔和默认视图，偏好按 Paseo 主机保存。[查看设置截图](assets/settings.png)。
+
+变更侧栏默认按修改文件数排序，隐藏没有文件更改且待推送、待拉取均为 0 的仓库。在**外观**中可改用**加载顺序**，也可开启**显示无待处理的仓库**。
 
 默认保留最近 **5 个标签**的内容和滚动位置，可设置为 1–10 个。自动刷新默认在扫描结束 2 秒后执行，可暂停，进入后台时停止。窄屏使用独立列表页与 diff 页。
 
