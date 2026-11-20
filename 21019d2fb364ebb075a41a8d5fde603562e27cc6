@@ -1,0 +1,28 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.8.4",
+  "base_commit_sha": "21019d2fb364ebb075a41a8d5fde603562e27cc6",
+  "prompts": {
+    "06979766303de476": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1f184-d017-7241-affe-4deca9325036",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Min Lee <liweimin@cvte.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0,
+      "token_usage": {
+        "input_tokens": 188275,
+        "output_tokens": 30608,
+        "cache_read_tokens": 5797632,
+        "cache_creation_tokens": null,
+        "total_cost": null
+      }
+    }
+  }
+}
