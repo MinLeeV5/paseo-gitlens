@@ -104,7 +104,7 @@ HTML previews do not run scripts. The daemon reads workspace images, using index
 
 **Settings** groups appearance, code, comparison, behavior, and commit options. Adjust fonts, layout, refresh interval, and the default view; preferences are saved per Paseo host. [View settings](assets/settings.png).
 
-The Changes sidebar sorts repositories by changed-file count and hides repositories with no changes and zero incoming and outgoing commits by default. Under **Appearance**, choose **Load order** or show clean repositories.
+The Changes sidebar sorts repositories by changed-file count and hides repositories with no changes and zero incoming and outgoing commits by default. Under **Appearance**, choose **Load order** or show clean repositories. The interface language can be switched between **English and 简体中文** in appearance settings; commit message generation follows the selected language.
 
 The last **5 visited tabs** retain their contents and scroll positions by default; configure 1–10. Automatic refresh defaults to 2 seconds after a scan, pauses in the background, and can be disabled. Narrow panels use separate list and diff pages.
 

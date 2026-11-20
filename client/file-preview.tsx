@@ -11,6 +11,7 @@ import {
 import { MAX_PREVIEW_IMAGES, type PreviewImages } from "../shared/preview-images";
 import { parsePreviewLink } from "../shared/preview-links";
 import { ToolButton } from "./controls";
+import { useT } from "./i18n";
 import { Icon } from "./icons";
 import { ImagePreview } from "./image-preview";
 import { hasMermaid } from "./mermaid-preview";
@@ -65,6 +66,7 @@ export function FilePreview({
   const loadImages = useRpc(previewImagesRpc);
   const loadRenderer = useRpc(mermaidRuntimeRpc);
   const c = panelTokens(theme);
+  const t = useT();
   const [attempt, setAttempt] = useState(0);
   const [runtime, setRuntime] = useState("");
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
@@ -124,7 +126,7 @@ export function FilePreview({
             kind === "markdown" ? markdownHtml(data.content) : htmlImages(data.content);
           const hrefs = localImageReferences(markup);
           for (const href of hrefs)
-            images[href] = { uri: null, message: "单个文档最多预览 32 张本地图片。" };
+            images[href] = { uri: null, message: t("单个文档最多预览 32 张本地图片。") };
           if (hrefs.length) {
             const requested = hrefs.slice(0, MAX_PREVIEW_IMAGES);
             try {
@@ -139,7 +141,7 @@ export function FilePreview({
                 images[image.href] = { uri: image.uri, message: image.message };
             } catch {
               for (const href of requested)
-                images[href] = { uri: null, message: "图片读取失败，请重试预览。" };
+                images[href] = { uri: null, message: t("图片读取失败，请重试预览。") };
             }
           }
         }
@@ -161,7 +163,7 @@ export function FilePreview({
     return () => {
       stopped = true;
     };
-  }, [call, loadImages, key, directory, repositoryId, path, comparison, scope, kind]);
+  }, [call, loadImages, key, directory, repositoryId, path, comparison, scope, kind, t]);
   const current = state.key === key ? state : { data: null, images: {}, error: null };
   const diagrams =
     Platform.OS === "web" &&
@@ -219,6 +221,7 @@ export function FilePreview({
               fontWeight,
               filePath: path,
               images: current.images,
+              t,
               ...(kind === "markdown" ? { navigation: identity } : {}),
               ...(diagrams && runtime
                 ? {
@@ -247,6 +250,7 @@ export function FilePreview({
       runtime,
       identity,
       path,
+      t,
     ],
   );
   function revealAnchor() {
@@ -277,8 +281,8 @@ export function FilePreview({
         {current.error ? (
           <ToolButton
             theme={theme}
-            label="重试读取预览"
-            text="重试"
+            label={t("重试读取预览")}
+            text={t("重试")}
             icon="refresh"
             onPress={() => setAttempt((value) => value + 1)}
           />
@@ -296,7 +300,7 @@ export function FilePreview({
       <ImagePreview
         key={key}
         uri={current.data.content}
-        label={`${path} 文件预览`}
+        label={t("{path} 文件预览", { path })}
         theme={theme}
         onCost={onCost}
         onReload={() => setAttempt((value) => value + 1)}
@@ -321,14 +325,14 @@ export function FilePreview({
             accessibilityLiveRegion="polite"
             style={{ flex: 1, color: c.foregroundMuted, fontSize: 12 }}
           >
-            {failedImages} 张图片未能加载
+            {t("{count} 张图片未能加载", { count: failedImages })}
           </Text>
         ) : null}
         <ToolButton
           theme={theme}
           icon="refresh"
-          label="重新加载预览及图片"
-          text="刷新预览"
+          label={t("重新加载预览及图片")}
+          text={t("刷新预览")}
           size={Platform.OS === "web" ? 28 : 44}
           onPress={() => setAttempt((value) => value + 1)}
         />
@@ -344,13 +348,13 @@ export function FilePreview({
             style={{ padding: 8, gap: 5, backgroundColor: c.surface1 }}
           >
             <Text style={{ color: c.statusDanger, fontSize: 12 }}>
-              Mermaid 加载失败：{runtimeError}
+              {t("Mermaid 加载失败：{error}", { error: runtimeError })}
             </Text>
             <ToolButton
               theme={theme}
               icon="refresh"
-              label="重试加载 Mermaid"
-              text="重试"
+              label={t("重试加载 Mermaid")}
+              text={t("重试")}
               onPress={() => setRuntimeError(null)}
             />
           </View>
@@ -358,11 +362,14 @@ export function FilePreview({
         {createElement("iframe", {
           key: `${key}:${Boolean(diagrams && runtime)}`,
           ref: frame,
-          title: `${path} 文件预览`,
+          title: t("{path} 文件预览", { path }),
           "data-testid": "file-preview",
           srcDoc:
             diagrams && runtimeError
-              ? document.replaceAll("正在加载 Mermaid 图表…", "图表引擎加载失败，可展开查看源码。")
+              ? document.replaceAll(
+                  t("正在加载 Mermaid 图表…"),
+                  t("图表引擎加载失败，可展开查看源码。"),
+                )
               : document,
           sandbox: kind === "markdown" ? "allow-scripts" : "",
           onLoad: revealAnchor,
@@ -378,6 +385,7 @@ export function FilePreview({
         })}
       </View>
     );
+
   if (kind === "markdown")
     return (
       <View style={{ flex: 1, minHeight: 0 }}>
@@ -398,7 +406,7 @@ export function FilePreview({
   return (
     <ScrollView contentContainerStyle={{ padding: 20 }}>
       <Text selectable style={{ color: c.foreground, fontSize, lineHeight: fontSize * 1.7 }}>
-        {kind === "html" ? "HTML 预览请在桌面或 Web 面板中打开。\n\n" : ""}
+        {kind === "html" ? `${t("HTML 预览请在桌面或 Web 面板中打开。")}\n\n` : ""}
         {current.data.content}
       </Text>
     </ScrollView>

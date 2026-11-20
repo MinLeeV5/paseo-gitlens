@@ -22,7 +22,7 @@ export default function contribute(client: PluginClientContext) {
         id: "open-gitlens",
         workspaceId,
         button: {
-          title: "打开 GitLens",
+          title: "Open GitLens",
           icon,
           behavior: {
             kind: "action",
@@ -80,7 +80,7 @@ export default function contribute(client: PluginClientContext) {
   }
   const removeCommand = addCommand({
     id: "open-changes",
-    title: "GitLens · 包含 Submodule",
+    title: "GitLens · With submodules",
     icon,
     keywords: ["GitLens", "Git", "submodule"],
     context: "workspace",
