@@ -252,7 +252,12 @@ export function SettingsPanel({
           <View
             accessibilityRole="tablist"
             accessibilityLabel={t("设置分类")}
-            style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: c.border }}
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              borderBottomWidth: 1,
+              borderBottomColor: c.border,
+            }}
           >
             {settingsTabs.map((tab, index) => {
               const selected = active === tab.id;
@@ -291,13 +296,15 @@ export function SettingsPanel({
                     if (Platform.OS === "web") tabRefs.current.get(tab.id)?.focus();
                   }}
                   style={{
-                    flex: 1,
-                    minWidth: 0,
-                    height: 40,
-                    flexDirection: "row",
+                    flexGrow: 1,
+                    minWidth: 44,
+                    maxWidth: "100%",
+                    minHeight: 44,
+                    paddingHorizontal: 4,
+                    paddingVertical: 6,
                     alignItems: "center",
                     justifyContent: "center",
-                    gap: 6,
+                    gap: 4,
                     borderBottomWidth: 2,
                     borderBottomColor: selected ? c.accent : "transparent",
                     backgroundColor: selected ? c.surface0 : "transparent",
@@ -310,8 +317,10 @@ export function SettingsPanel({
                   />
                   <Text
                     style={{
+                      maxWidth: "100%",
+                      textAlign: "center",
                       fontSize: 12,
-                      fontWeight: selected ? "600" : "400",
+                      fontWeight: "500",
                       color: selected ? c.foreground : c.foregroundMuted,
                     }}
                   >

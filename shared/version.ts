@@ -1,2 +1,2 @@
 // Generated from package.json by npm run sync:version. Do not edit.
-export const pluginVersion = "0.8.0";
+export const pluginVersion = "0.9.0";
