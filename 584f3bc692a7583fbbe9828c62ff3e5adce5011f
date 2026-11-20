@@ -1,0 +1,31 @@
+client/settings-panel.tsx
+  b2ee3d2847fc4874 255-260,299-304,307,320-321,323
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.8.4",
+  "base_commit_sha": "584f3bc692a7583fbbe9828c62ff3e5adce5011f",
+  "prompts": {
+    "b2ee3d2847fc4874": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1f7e1-1248-72d0-9951-27ba98f40976",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "李伟民 <liweimin@cvte.com>",
+      "messages": [],
+      "total_additions": 16,
+      "total_deletions": 7,
+      "accepted_lines": 16,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/f7c37d8f01c85276f4b57c5639e8d10a1d50e784b055348b28446481c632dc05",
+      "token_usage": {
+        "input_tokens": 139428,
+        "output_tokens": 22278,
+        "cache_read_tokens": 4220288,
+        "cache_creation_tokens": null,
+        "total_cost": null
+      }
+    }
+  }
+}
