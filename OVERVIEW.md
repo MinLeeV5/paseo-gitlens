@@ -12,6 +12,8 @@
 
 Open GitLens in a workspace, choose a repository, and review its changes or history. Customize fonts, layout, refresh behavior, and commit instructions per host. Git runs on the daemon host using its identity, authentication, and hooks.
 
+Choose English or Simplified Chinese in Appearance settings. The interface, messages, and commit message generation follow the selected language.
+
 The Changes sidebar defaults to sorting repositories by changed-file count and hiding repositories with no changes and zero incoming and outgoing commits. Appearance settings offer load order and a switch to show clean repositories.
 
 AI drafts send file paths, change metadata, diff excerpts, and instructions to the configured Paseo provider. Local rules run on the host.
